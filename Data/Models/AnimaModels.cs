@@ -1,215 +1,348 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 
-namespace Anima.Data.Models;
-
-/// <summary>
-/// Воспоминание в долговременной памяти Anima
-/// </summary>
-public class Memory
+namespace Anima.Data.Models
 {
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string InstanceId { get; set; } = string.Empty;
-    
-    [Required]
-    public string Content { get; set; } = string.Empty;
-    
-    [Required]
-    public string Category { get; set; } = string.Empty;
-    
-    [Range(1, 10)]
-    public int Importance { get; set; } = 5;
-    
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
-    public string? Tags { get; set; }
-    
-    public DateTime? ExpirationDate { get; set; }
-    
-    public bool IsDeleted { get; set; } = false;
-}
+    // Модель API ключа для аутентификации
+    public class APIKey
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(255)]
+        public string KeyValue { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+        
+        public bool IsActive { get; set; } = true;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public DateTime? ExpiresAt { get; set; }
+        
+        [MaxLength(100)]
+        public string CreatedBy { get; set; } = string.Empty;
+    }
 
-/// <summary>
-/// Эмоциональное состояние Anima
-/// </summary>
-public class EmotionState
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string InstanceId { get; set; } = string.Empty;
-    
-    [Required]
-    public string Emotion { get; set; } = string.Empty;
-    
-    [Range(0.0, 1.0)]
-    public double Intensity { get; set; } = 0.5;
-    
-    public string? Trigger { get; set; }
-    
-    public string? Context { get; set; }
-    
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
-    public TimeSpan Duration { get; set; } = TimeSpan.Zero;
-}
+    // Модель пользовательской сессии
+    public class UserSession
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(255)]
+        public string SessionId { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string UserId { get; set; } = string.Empty;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public DateTime LastAccessAt { get; set; } = DateTime.UtcNow;
+        
+        public bool IsActive { get; set; } = true;
+        
+        [MaxLength(45)]
+        public string IpAddress { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string SessionData { get; set; } = string.Empty;
+    }
 
-/// <summary>
-/// Мысль в журнале размышлений
-/// </summary>
-public class Thought
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string InstanceId { get; set; } = string.Empty;
-    
-    [Required]
-    public string Content { get; set; } = string.Empty;
-    
-    [Required]
-    public string Type { get; set; } = string.Empty;
-    
-    [Required]
-    public string Source { get; set; } = string.Empty;
-    
-    public string? Category { get; set; }
-    
-    public string? Emotion { get; set; }
-    
-    public string? Reasoning { get; set; }
-    
-    public string? Decision { get; set; }
-    
-    [Range(1, 10)]
-    public int Confidence { get; set; } = 5;
-    
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
-    public string? Tags { get; set; }
-}
+    // Модель системной конфигурации
+    public class SystemConfig
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string Key { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Value { get; set; } = string.Empty;
+        
+        [MaxLength(255)]
+        public string Description { get; set; } = string.Empty;
+        
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+        
+        [MaxLength(100)]
+        public string UpdatedBy { get; set; } = string.Empty;
+    }
 
-/// <summary>
-/// Цель Anima
-/// </summary>
-public class Goal
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string InstanceId { get; set; } = string.Empty;
-    
-    [Required]
-    public string Name { get; set; } = string.Empty;
-    
-    [Required]
-    public string Description { get; set; } = string.Empty;
-    
-    [Range(0.0, 1.0)]
-    public double Priority { get; set; } = 0.5;
-    
-    [Range(0.0, 1.0)]
-    public double Progress { get; set; } = 0.0;
-    
-    public string Status { get; set; } = "Active";
-    
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
-    public DateTime? CompletedAt { get; set; }
-    
-    public string? ParentGoalId { get; set; }
-    
-    public string? Tags { get; set; }
-}
+    // Модель данных обучения
+    public class LearningData
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string Category { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string InputData { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string OutputData { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Context { get; set; } = string.Empty;
+        
+        public double ConfidenceScore { get; set; } = 0.0;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public bool IsValidated { get; set; } = false;
+        
+        [MaxLength(255)]
+        public string Source { get; set; } = string.Empty;
+    }
 
-/// <summary>
-/// Взаимодействие с пользователем
-/// </summary>
-public class Interaction
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string InstanceId { get; set; } = string.Empty;
-    
-    [Required]
-    public string UserInput { get; set; } = string.Empty;
-    
-    [Required]
-    public string AnimaResponse { get; set; } = string.Empty;
-    
-    public string? Context { get; set; }
-    
-    public string? Intent { get; set; }
-    
-    public string? Emotion { get; set; }
-    
-    [Range(1, 10)]
-    public int Satisfaction { get; set; } = 5;
-    
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
-    public string? Tags { get; set; }
-}
+    // Модель профиля пользователя
+    public class UserProfile
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string UserId { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+        
+        [MaxLength(255)]
+        public string Email { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Preferences { get; set; } = string.Empty;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public DateTime LastLoginAt { get; set; } = DateTime.UtcNow;
+        
+        public bool IsActive { get; set; } = true;
+        
+        [MaxLength(100)]
+        public string Role { get; set; } = "User";
+    }
 
-/// <summary>
-/// API ключи для аутентификации
-/// </summary>
-public class ApiKey
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string KeyHash { get; set; } = string.Empty;
-    
-    [Required]
-    public string UserId { get; set; } = string.Empty;
-    
-    public bool IsCreator { get; set; } = false;
-    
-    public bool IsActive { get; set; } = true;
-    
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    
-    public DateTime? ExpiresAt { get; set; }
-    
-    public DateTime? LastUsed { get; set; }
-    
-    public int RequestCount { get; set; } = 0;
-    
-    public string? Description { get; set; }
-}
+    // Модель аудита системы
+    public class SystemAudit
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string Action { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string UserId { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Details { get; set; } = string.Empty;
+        
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        
+        [MaxLength(45)]
+        public string IpAddress { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string Component { get; set; } = string.Empty;
+        
+        [MaxLength(50)]
+        public string Severity { get; set; } = "Info";
+    }
 
-/// <summary>
-/// Лог запросов для rate limiting
-/// </summary>
-public class RequestLog
-{
-    [Key]
-    public int Id { get; set; }
-    
-    [Required]
-    public string ApiKeyHash { get; set; } = string.Empty;
-    
-    [Required]
-    public string Endpoint { get; set; } = string.Empty;
-    
-    [Required]
-    public string Method { get; set; } = string.Empty;
-    
-    public string? IpAddress { get; set; }
-    
-    public int ResponseCode { get; set; }
-    
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
-    
-    public long ResponseTimeMs { get; set; }
+    // Модель метрик производительности
+    public class PerformanceMetric
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string MetricName { get; set; } = string.Empty;
+        
+        public double Value { get; set; } = 0.0;
+        
+        [MaxLength(50)]
+        public string Unit { get; set; } = string.Empty;
+        
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        
+        [MaxLength(100)]
+        public string Component { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Metadata { get; set; } = string.Empty;
+    }
+
+    // Модель системного бэкапа
+    public class SystemBackup
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(255)]
+        public string BackupName { get; set; } = string.Empty;
+        
+        [MaxLength(255)]
+        public string FilePath { get; set; } = string.Empty;
+        
+        public long FileSize { get; set; } = 0;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        [MaxLength(50)]
+        public string BackupType { get; set; } = "Full";
+        
+        [MaxLength(50)]
+        public string Status { get; set; } = "Completed";
+        
+        [MaxLength(255)]
+        public string Description { get; set; } = string.Empty;
+        
+        public bool IsCompressed { get; set; } = true;
+        
+        [MaxLength(64)]
+        public string CheckSum { get; set; } = string.Empty;
+    }
+
+    // Модель эмоционального состояния
+    public class EmotionState
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(50)]
+        public string EmotionType { get; set; } = string.Empty;
+        
+        public double Intensity { get; set; } = 0.0;
+        
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        
+        [Column(TypeName = "TEXT")]
+        public string Context { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Trigger { get; set; } = string.Empty;
+        
+        public int Duration { get; set; } = 0; // в секундах
+        
+        [MaxLength(100)]
+        public string InstanceId { get; set; } = string.Empty;
+    }
+
+    // Модель памяти
+    public class Memory
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Required]
+        [MaxLength(100)]
+        public string MemoryType { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Content { get; set; } = string.Empty;
+        
+        public double Importance { get; set; } = 0.0;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public DateTime LastAccessedAt { get; set; } = DateTime.UtcNow;
+        
+        public int AccessCount { get; set; } = 0;
+        
+        [Column(TypeName = "TEXT")]
+        public string Tags { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string InstanceId { get; set; } = string.Empty;
+        
+        public bool IsArchived { get; set; } = false;
+    }
+
+    // Модель мыслей
+    public class Thought
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        [Column(TypeName = "TEXT")]
+        public string Content { get; set; } = string.Empty;
+        
+        [MaxLength(50)]
+        public string ThoughtType { get; set; } = string.Empty;
+        
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+        
+        [Column(TypeName = "TEXT")]
+        public string Context { get; set; } = string.Empty;
+        
+        public double Confidence { get; set; } = 0.0;
+        
+        [MaxLength(100)]
+        public string InstanceId { get; set; } = string.Empty;
+        
+        public int? ParentThoughtId { get; set; }
+        
+        [ForeignKey("ParentThoughtId")]
+        public virtual Thought? ParentThought { get; set; }
+        
+        public virtual ICollection<Thought> ChildThoughts { get; set; } = new List<Thought>();
+    }
+
+    // Перечисления для типов уведомлений
+    public enum NotificationType
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+        Success = 3,
+        Debug = 4,
+        Critical = 5,
+        Emotion = 6,
+        Learning = 7,
+        Memory = 8,
+        Consciousness = 9
+    }
+
+    // Модель уведомлений
+    public class Notification
+    {
+        [Key]
+        public int Id { get; set; }
+        
+        public NotificationType Type { get; set; } = NotificationType.Info;
+        
+        [Required]
+        [MaxLength(255)]
+        public string Title { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Message { get; set; } = string.Empty;
+        
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        public bool IsRead { get; set; } = false;
+        
+        [MaxLength(100)]
+        public string Component { get; set; } = string.Empty;
+        
+        [MaxLength(100)]
+        public string InstanceId { get; set; } = string.Empty;
+        
+        [Column(TypeName = "TEXT")]
+        public string Metadata { get; set; } = string.Empty;
+    }
 }
