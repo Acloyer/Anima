@@ -1,1 +1,12 @@
+# Build results
+bin/
+obj/
+/obj
+
+# User-specific files
+*.user
+*.suo
+
+# Env
 .env
+*.cache
