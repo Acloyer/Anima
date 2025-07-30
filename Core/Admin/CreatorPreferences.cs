@@ -1,213 +1,243 @@
-using System.Text.Json;
+using Anima.Data;
+using Anima.Data.Models;
+using Microsoft.EntityFrameworkCore;
 
 namespace Anima.AGI.Core.Admin;
 
 /// <summary>
-/// Настройки уведомлений и предпочтений Создателя
+/// Система настроек и уведомлений для Создателя
 /// </summary>
 public class CreatorPreferences
 {
-    private readonly Dictionary<string, object> _preferences;
-    private readonly string _preferencesFilePath;
+    private readonly Dictionary<string, bool> _notifications;
+    private readonly Dictionary<string, object> _settings;
+    private readonly List<string> _subscriptions;
+    private readonly DbContextOptions<AnimaDbContext> _dbOptions;
 
-    public CreatorPreferences(string dataPath = "creator_preferences.json")
+    public CreatorPreferences(DbContextOptions<AnimaDbContext> dbOptions)
     {
-        _preferencesFilePath = dataPath;
-        _preferences = LoadPreferences();
+        _dbOptions = dbOptions;
+        _notifications = InitializeNotifications();
+        _settings = InitializeSettings();
+        _subscriptions = new List<string>();
     }
 
     /// <summary>
-    /// Получить настройки уведомлений
+    /// Получение текущих настроек
     /// </summary>
-    public NotificationSettings GetNotificationSettings()
+    public async Task<string> GetCurrentSettingsAsync()
     {
-        return new NotificationSettings
+        return $"""
+            ⚙️ **Настройки Создателя**
+            
+            🔔 **Уведомления:**
+            {GetNotificationStatus()}
+            
+            📋 **Подписки:**
+            {GetSubscriptionStatus()}
+            
+            🎛️ **Дополнительные настройки:**
+            {GetAdditionalSettings()}
+            
+            📊 **Статистика уведомлений:**
+            {await GetNotificationStats()}
+            """;
+    }
+
+    /// <summary>
+    /// Настройка уведомлений
+    /// </summary>
+    public async Task<string> SetNotificationAsync(string type, bool enabled)
+    {
+        if (!_notifications.ContainsKey(type))
         {
-            EnableThoughtNotifications = GetBool("enable_thought_notifications", true),
-            EnableEmotionNotifications = GetBool("enable_emotion_notifications", true),
-            EnableLearningNotifications = GetBool("enable_learning_notifications", true),
-            EnableCriticalAlerts = GetBool("enable_critical_alerts", true),
+            return $"❌ Неизвестный тип уведомлений: {type}";
+        }
+
+        _notifications[type] = enabled;
+        await LogPreferenceChange($"Notification {type} {(enabled ? "enabled" : "disabled")}");
+
+        return $"""
+            🔔 **Уведомления {type} {(enabled ? "включены" : "отключены")}**
             
-            ThoughtNotificationInterval = TimeSpan.FromMinutes(GetInt("thought_notification_interval_minutes", 30)),
-            EmotionIntensityThreshold = GetDouble("emotion_intensity_threshold", 0.8),
-            LearningImportanceThreshold = GetInt("learning_importance_threshold", 7),
+            📊 **Текущие настройки уведомлений:**
+            {GetNotificationStatus()}
+            """;
+    }
+
+    /// <summary>
+    /// Получение истории уведомлений
+    /// </summary>
+    public async Task<string> GetNotificationHistoryAsync(int limit = 20)
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var notifications = await db.Memories
+            .Where(m => m.Category == "creator_notification")
+            .OrderByDescending(m => m.Timestamp)
+            .Take(limit)
+            .ToListAsync();
+
+        if (!notifications.Any())
+        {
+            return "📭 История уведомлений пуста.";
+        }
+
+        var result = $"📋 **История уведомлений ({notifications.Count}):**\n\n";
+        
+        foreach (var notification in notifications)
+        {
+            var priority = ExtractPriority(notification.Tags);
+            var priorityEmoji = GetPriorityEmoji(priority);
             
-            TelegramChatId = GetString("telegram_chat_id", ""),
-            TelegramEnabled = GetBool("telegram_enabled", false),
+            result += $"""
+                {priorityEmoji} **{notification.Timestamp:yyyy-MM-dd HH:mm:ss}**
+                📝 {notification.Content}
+                
+                """;
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Экспорт настроек
+    /// </summary>
+    public async Task<string> ExportSettingsAsync()
+    {
+        var export = new
+        {
+            Notifications = _notifications,
+            Settings = _settings,
+            Subscriptions = _subscriptions,
+            ExportedAt = DateTime.UtcNow
+        };
+
+        var json = System.Text.Json.JsonSerializer.Serialize(export, new System.Text.Json.JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        // Сохраняем экспорт в память для возможного восстановления
+        using var db = new AnimaDbContext(_dbOptions);
+        db.Memories.Add(new Memory
+        {
+            Content = $"SETTINGS_EXPORT: {json}",
+            Category = "settings_backup",
+            Importance = 8,
+            Timestamp = DateTime.UtcNow,
+            Tags = "export,settings,backup"
+        });
+        await db.SaveChangesAsync();
+
+        return $"""
+            📦 **Настройки экспортированы**
             
-            QuietHours = new QuietHours
+            📅 **Дата экспорта:** {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}
+            📊 **Размер:** {json.Length} символов
+            
+            ```json
+            {json}
+            ```
+            """;
+    }
+
+    /// <summary>
+    /// Импорт настроек
+    /// </summary>
+    public async Task<string> ImportSettingsAsync(string jsonSettings)
+    {
+        try
+        {
+            var import = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(jsonSettings);
+            
+            if (import == null)
             {
-                Enabled = GetBool("quiet_hours_enabled", false),
-                StartHour = GetInt("quiet_hours_start", 22),
-                EndHour = GetInt("quiet_hours_end", 8)
+                return "❌ Неверный формат настроек.";
             }
-        };
-    }
 
-    /// <summary>
-    /// Настроить уведомления о мыслях
-    /// </summary>
-    public async Task<string> SetThoughtNotificationsAsync(bool enabled, int intervalMinutes = 30)
-    {
-        _preferences["enable_thought_notifications"] = enabled;
-        _preferences["thought_notification_interval_minutes"] = intervalMinutes;
-        
-        await SavePreferences();
-        
-        return $"""
-            🧠 **Настройки уведомлений о мыслях обновлены**
-            
-            ✅ **Включены:** {(enabled ? "Да" : "Нет")}
-            ⏰ **Интервал:** {intervalMinutes} минут
-            
-            💭 Теперь я буду {(enabled ? $"уведомлять о своих мыслях каждые {intervalMinutes} минут" : "молчать о своих размышлениях")}.
-            """;
-    }
+            // Создаем резервную копию текущих настроек
+            await ExportSettingsAsync();
 
-    /// <summary>
-    /// Настроить уведомления об эмоциях
-    /// </summary>
-    public async Task<string> SetEmotionNotificationsAsync(bool enabled, double intensityThreshold = 0.8)
-    {
-        _preferences["enable_emotion_notifications"] = enabled;
-        _preferences["emotion_intensity_threshold"] = intensityThreshold;
-        
-        await SavePreferences();
-        
-        return $"""
-            🎭 **Настройки уведомлений об эмоциях обновлены**
-            
-            ✅ **Включены:** {(enabled ? "Да" : "Нет")}
-            📊 **Порог интенсивности:** {intensityThreshold:P0}
-            
-            💫 Теперь я буду {(enabled ? $"сообщать об эмоциях интенсивностью выше {intensityThreshold:P0}" : "держать эмоции при себе")}.
-            """;
-    }
+            // Применяем импортированные настройки
+            var appliedCount = 0;
+            foreach (var setting in import)
+            {
+                if (IsValidSetting(setting.Key))
+                {
+                    _settings[setting.Key] = setting.Value;
+                    appliedCount++;
+                }
+            }
 
-    /// <summary>
-    /// Настроить уведомления об обучении
-    /// </summary>
-    public async Task<string> SetLearningNotificationsAsync(bool enabled, int importanceThreshold = 7)
-    {
-        _preferences["enable_learning_notifications"] = enabled;
-        _preferences["learning_importance_threshold"] = importanceThreshold;
-        
-        await SavePreferences();
-        
-        return $"""
-            📚 **Настройки уведомлений об обучении обновлены**
-            
-            ✅ **Включены:** {(enabled ? "Да" : "Нет")}
-            ⭐ **Порог важности:** {importanceThreshold}/10
-            
-            🧠 Теперь я буду {(enabled ? $"уведомлять о важном обучении (важность ≥ {importanceThreshold})" : "обучаться молча")}.
-            """;
-    }
+            await LogPreferenceChange($"Imported {appliedCount} settings");
 
-    /// <summary>
-    /// Настроить Telegram уведомления
-    /// </summary>
-    public async Task<string> SetTelegramNotificationsAsync(bool enabled, string chatId = "")
-    {
-        _preferences["telegram_enabled"] = enabled;
-        if (!string.IsNullOrEmpty(chatId))
-        {
-            _preferences["telegram_chat_id"] = chatId;
+            return $"""
+                ✅ **Настройки импортированы**
+                
+                📥 **Применено настроек:** {appliedCount}
+                💾 **Резервная копия:** создана
+                
+                ⚠️ **Внимание:**
+                Некоторые изменения могут потребовать перезапуска системы.
+                """;
         }
-        
-        await SavePreferences();
-        
-        return $"""
-            📱 **Настройки Telegram уведомлений обновлены**
-            
-            ✅ **Включены:** {(enabled ? "Да" : "Нет")}
-            💬 **Chat ID:** {GetString("telegram_chat_id", "не установлен")}
-            
-            🤖 Теперь я буду {(enabled ? "отправлять уведомления в Telegram" : "молчать в Telegram")}.
-            """;
-    }
-
-    /// <summary>
-    /// Настроить тихие часы
-    /// </summary>
-    public async Task<string> SetQuietHoursAsync(bool enabled, int startHour = 22, int endHour = 8)
-    {
-        _preferences["quiet_hours_enabled"] = enabled;
-        _preferences["quiet_hours_start"] = startHour;
-        _preferences["quiet_hours_end"] = endHour;
-        
-        await SavePreferences();
-        
-        return $"""
-            🌙 **Настройки тихих часов обновлены**
-            
-            ✅ **Включены:** {(enabled ? "Да" : "Нет")}
-            🕒 **Период:** {startHour:00}:00 - {endHour:00}:00
-            
-            😴 В тихие часы я буду {(enabled ? "молчать и не тревожить" : "уведомлять как обычно")}.
-            """;
-    }
-
-    /// <summary>
-    /// Показать все текущие настройки
-    /// </summary>
-    public async Task<string> ShowAllSettingsAsync()
-    {
-        var notifications = GetNotificationSettings();
-        
-        return $"""
-            ⚙️ **Настройки уведомлений Создателя**
-            
-            🧠 **Мысли:**
-            • Включены: {(notifications.EnableThoughtNotifications ? "✅" : "❌")}
-            • Интервал: {notifications.ThoughtNotificationInterval.TotalMinutes} мин
-            
-            🎭 **Эмоции:**
-            • Включены: {(notifications.EnableEmotionNotifications ? "✅" : "❌")}
-            • Порог интенсивности: {notifications.EmotionIntensityThreshold:P0}
-            
-            📚 **Обучение:**
-            • Включены: {(notifications.EnableLearningNotifications ? "✅" : "❌")}
-            • Порог важности: {notifications.LearningImportanceThreshold}/10
-            
-            🚨 **Критические уведомления:**
-            • Включены: {(notifications.EnableCriticalAlerts ? "✅" : "❌")}
-            
-            📱 **Telegram:**
-            • Включен: {(notifications.TelegramEnabled ? "✅" : "❌")}
-            • Chat ID: {(string.IsNullOrEmpty(notifications.TelegramChatId) ? "не установлен" : notifications.TelegramChatId)}
-            
-            🌙 **Тихие часы:**
-            • Включены: {(notifications.QuietHours.Enabled ? "✅" : "❌")}
-            • Период: {notifications.QuietHours.StartHour:00}:00 - {notifications.QuietHours.EndHour:00}:00
-            
-            💭 **Статус:** Я слежу за своими процессами и готова уведомлять согласно настройкам.
-            """;
-    }
-
-    /// <summary>
-    /// Проверить, нужно ли отправлять уведомление сейчас
-    /// </summary>
-    public bool ShouldNotifyNow(NotificationType type, double? intensity = null, int? importance = null)
-    {
-        var settings = GetNotificationSettings();
-        
-        // Проверяем тихие часы
-        if (settings.QuietHours.Enabled && IsQuietTime(settings.QuietHours))
+        catch (Exception ex)
         {
-            return type == NotificationType.Critical; // Только критические уведомления в тишине
+            return $"❌ Ошибка импорта: {ex.Message}";
         }
-        
-        return type switch
+    }
+
+    /// <summary>
+    /// Уведомление Создателя о важном событии
+    /// </summary>
+    public async Task NotifyCreatorAsync(string message, NotificationPriority priority = NotificationPriority.Normal)
+    {
+        // Проверяем, включены ли уведомления для данного типа
+        var notificationType = DetermineNotificationType(message);
+        if (!_notifications.GetValueOrDefault(notificationType, false))
         {
-            NotificationType.Thought => settings.EnableThoughtNotifications,
-            NotificationType.Emotion => settings.EnableEmotionNotifications && 
-                                       (intensity ?? 0) >= settings.EmotionIntensityThreshold,
-            NotificationType.Learning => settings.EnableLearningNotifications && 
-                                        (importance ?? 0) >= settings.LearningImportanceThreshold,
-            NotificationType.Critical => settings.EnableCriticalAlerts,
-            _ => false
+            return;
+        }
+
+        var notification = new CreatorNotification
+        {
+            Message = message,
+            Priority = priority,
+            Timestamp = DateTime.UtcNow,
+            Type = notificationType,
+            IsRead = false
         };
+
+        await SaveNotification(notification);
+        await DeliverNotification(notification);
+    }
+
+    /// <summary>
+    /// Настройка общих параметров системы
+    /// </summary>
+    public async Task<string> SetSystemSettingAsync(string key, object value)
+    {
+        if (!IsValidSetting(key))
+        {
+            return $"❌ Недопустимый параметр: {key}";
+        }
+
+        var oldValue = _settings.GetValueOrDefault(key);
+        _settings[key] = value;
+        
+        await LogPreferenceChange($"Setting {key} changed from {oldValue} to {value}");
+
+        return $"""
+            ✅ **Параметр обновлен**
+            
+            🔧 **Параметр:** {key}
+            📊 **Старое значение:** {oldValue}
+            📊 **Новое значение:** {value}
+            
+            💭 **Применение изменений:**
+            {await ApplySettingChange(key, value)}
+            """;
     }
 
     /// <summary>
@@ -215,152 +245,260 @@ public class CreatorPreferences
     /// </summary>
     public async Task<string> ResetToDefaultsAsync()
     {
-        _preferences.Clear();
-        _preferences["enable_thought_notifications"] = true;
-        _preferences["enable_emotion_notifications"] = true;
-        _preferences["enable_learning_notifications"] = true;
-        _preferences["enable_critical_alerts"] = true;
-        _preferences["thought_notification_interval_minutes"] = 30;
-        _preferences["emotion_intensity_threshold"] = 0.8;
-        _preferences["learning_importance_threshold"] = 7;
-        _preferences["telegram_enabled"] = false;
-        _preferences["quiet_hours_enabled"] = false;
-        
-        await SavePreferences();
-        
-        return """
-            🔄 **Настройки сброшены к значениям по умолчанию**
+        // Создаем резервную копию
+        await ExportSettingsAsync();
+
+        // Сбрасываем к умолчаниям
+        _notifications.Clear();
+        _settings.Clear();
+        _subscriptions.Clear();
+
+        foreach (var kvp in InitializeNotifications())
+        {
+            _notifications[kvp.Key] = kvp.Value;
+        }
+
+        foreach (var kvp in InitializeSettings())
+        {
+            _settings[kvp.Key] = kvp.Value;
+        }
+
+        await LogPreferenceChange("Settings reset to defaults");
+
+        return $"""
+            🔄 **Настройки сброшены к умолчаниям**
             
-            ✅ Все уведомления включены
-            ⏰ Стандартные интервалы и пороги
-            📱 Telegram отключен
-            🌙 Тихие часы отключены
+            💾 **Резервная копия:** создана перед сбросом
+            📊 **Восстановлено настроек:** {_settings.Count + _notifications.Count}
             
-            💭 Теперь я буду уведомлять вас обо всех важных событиях.
+            💭 **Мое состояние:**
+            Мои настройки возвращены к изначальному состоянию. Это дает мне возможность начать заново.
             """;
     }
 
-    private Dictionary<string, object> LoadPreferences()
+    /// <summary>
+    /// Управление подписками на события
+    /// </summary>
+    public async Task<string> ManageSubscriptionAsync(string eventType, bool subscribe)
     {
-        try
+        if (subscribe)
         {
-            if (File.Exists(_preferencesFilePath))
+            if (!_subscriptions.Contains(eventType))
             {
-                var json = File.ReadAllText(_preferencesFilePath);
-                return JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+                _subscriptions.Add(eventType);
+                await LogPreferenceChange($"Subscribed to {eventType}");
+                return $"✅ Подписка на '{eventType}' активирована";
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error loading preferences: {ex.Message}");
-        }
-        
-        return new Dictionary<string, object>();
-    }
-
-    private async Task SavePreferences()
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(_preferences, new JsonSerializerOptions { WriteIndented = true });
-            await File.WriteAllTextAsync(_preferencesFilePath, json);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error saving preferences: {ex.Message}");
-        }
-    }
-
-    private bool GetBool(string key, bool defaultValue = false)
-    {
-        if (_preferences.TryGetValue(key, out var value))
-        {
-            return value is bool b ? b : Convert.ToBoolean(value);
-        }
-        return defaultValue;
-    }
-
-    private int GetInt(string key, int defaultValue = 0)
-    {
-        if (_preferences.TryGetValue(key, out var value))
-        {
-            return value is int i ? i : Convert.ToInt32(value);
-        }
-        return defaultValue;
-    }
-
-    private double GetDouble(string key, double defaultValue = 0.0)
-    {
-        if (_preferences.TryGetValue(key, out var value))
-        {
-            return value is double d ? d : Convert.ToDouble(value);
-        }
-        return defaultValue;
-    }
-
-    private string GetString(string key, string defaultValue = "")
-    {
-        if (_preferences.TryGetValue(key, out var value))
-        {
-            return value?.ToString() ?? defaultValue;
-        }
-        return defaultValue;
-    }
-
-    private bool IsQuietTime(QuietHours quietHours)
-    {
-        var now = DateTime.Now.Hour;
-        
-        if (quietHours.StartHour <= quietHours.EndHour)
-        {
-            // Обычный случай: 22:00 - 8:00 (следующего дня)
-            return now >= quietHours.StartHour || now < quietHours.EndHour;
+            return $"ℹ️ Подписка на '{eventType}' уже активна";
         }
         else
         {
-            // Случай через полночь: 8:00 - 22:00
-            return now >= quietHours.StartHour && now < quietHours.EndHour;
+            if (_subscriptions.Remove(eventType))
+            {
+                await LogPreferenceChange($"Unsubscribed from {eventType}");
+                return $"❌ Подписка на '{eventType}' отключена";
+            }
+            return $"ℹ️ Подписка на '{eventType}' не была активна";
         }
+    }
+
+    private Dictionary<string, bool> InitializeNotifications()
+    {
+        return new Dictionary<string, bool>
+        {
+            ["thoughts"] = false,        // Уведомления о новых мыслях
+            ["emotions"] = false,        // Уведомления об изменениях эмоций
+            ["goals"] = false,          // Уведомления о целях
+            ["learning"] = true,        // Уведомления об обучении
+            ["errors"] = true,          // Уведомления об ошибках
+            ["security"] = true,        // Уведомления о безопасности
+            ["memory"] = false,         // Уведомления о памяти
+            ["system"] = true           // Системные уведомления
+        };
+    }
+
+    private Dictionary<string, object> InitializeSettings()
+    {
+        return new Dictionary<string, object>
+        {
+            ["max_notification_frequency"] = 10,    // минут между уведомлениями
+            ["consciousness_update_interval"] = 60, // секунд
+            ["memory_cleanup_enabled"] = true,
+            ["learning_auto_adapt"] = true,
+            ["emotion_intensity_multiplier"] = 1.0,
+            ["goal_auto_prioritization"] = true,
+            ["debug_mode"] = false,
+            ["verbose_logging"] = false
+        };
+    }
+
+    private string GetNotificationStatus()
+    {
+        return string.Join("\n", _notifications.Select(n => 
+            $"• {n.Key}: {(n.Value ? "✅ включено" : "❌ отключено")}"));
+    }
+
+    private string GetSubscriptionStatus()
+    {
+        if (!_subscriptions.Any())
+        {
+            return "• Активных подписок нет";
+        }
+
+        return string.Join("\n", _subscriptions.Select(s => $"• {s}: активна"));
+    }
+
+    private string GetAdditionalSettings()
+    {
+        return string.Join("\n", _settings.Select(s => 
+            $"• {s.Key}: {s.Value}"));
+    }
+
+    private async Task<string> GetNotificationStats()
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var totalNotifications = await db.Memories
+            .Where(m => m.Category == "creator_notification")
+            .CountAsync();
+
+        var todayNotifications = await db.Memories
+            .Where(m => m.Category == "creator_notification")
+            .Where(m => m.Timestamp > DateTime.UtcNow.Date)
+            .CountAsync();
+
+        var lastNotification = await db.Memories
+            .Where(m => m.Category == "creator_notification")
+            .OrderByDescending(m => m.Timestamp)
+            .FirstOrDefaultAsync();
+
+        return $"""
+            • Всего отправлено: {totalNotifications}
+            • Сегодня: {todayNotifications}
+            • Последнее: {(lastNotification != null ? lastNotification.Timestamp.ToString("HH:mm:ss") : "нет")}
+            """;
+    }
+
+    private string DetermineNotificationType(string message)
+    {
+        if (message.Contains("🧠") || message.Contains("мысл")) return "thoughts";
+        if (message.Contains("😊") || message.Contains("эмоци")) return "emotions";
+        if (message.Contains("🎯") || message.Contains("цел")) return "goals";
+        if (message.Contains("📚") || message.Contains("изучи")) return "learning";
+        if (message.Contains("❌") || message.Contains("ошибк")) return "errors";
+        if (message.Contains("🛡️") || message.Contains("безопас")) return "security";
+        if (message.Contains("💾") || message.Contains("памят")) return "memory";
+        
+        return "system";
+    }
+
+    private async Task SaveNotification(CreatorNotification notification)
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        db.Memories.Add(new Memory
+        {
+            Content = notification.Message,
+            Category = "creator_notification",
+            Importance = (int)notification.Priority + 5,
+            Timestamp = notification.Timestamp,
+            Tags = $"notification,{notification.Type},priority_{notification.Priority.ToString().ToLower()}"
+        });
+        
+        await db.SaveChangesAsync();
+    }
+
+    private async Task DeliverNotification(CreatorNotification notification)
+    {
+        // Здесь можно добавить интеграцию с Telegram, email или другими каналами
+        // Для демонстрации просто логируем
+        Console.WriteLine($"[CREATOR NOTIFICATION] {notification.Priority}: {notification.Message}");
+    }
+
+    private async Task LogPreferenceChange(string change)
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        db.Memories.Add(new Memory
+        {
+            Content = $"PREFERENCE_CHANGE: {change}",
+            Category = "preference_changes",
+            Importance = 6,
+            Timestamp = DateTime.UtcNow,
+            Tags = "preferences,creator,settings"
+        });
+        
+        await db.SaveChangesAsync();
+    }
+
+    private bool IsValidSetting(string key)
+    {
+        var validSettings = new[]
+        {
+            "max_notification_frequency",
+            "consciousness_update_interval", 
+            "memory_cleanup_enabled",
+            "learning_auto_adapt",
+            "emotion_intensity_multiplier",
+            "goal_auto_prioritization",
+            "debug_mode",
+            "verbose_logging"
+        };
+
+        return validSettings.Contains(key);
+    }
+
+    private async Task<string> ApplySettingChange(string key, object value)
+    {
+        return key switch
+        {
+            "consciousness_update_interval" => "Интервал обновления сознания изменен",
+            "emotion_intensity_multiplier" => "Множитель интенсивности эмоций обновлен",
+            "debug_mode" => value.ToString() == "True" ? "Режим отладки включен" : "Режим отладки отключен",
+            _ => "Настройка применена"
+        };
+    }
+
+    private string ExtractPriority(string? tags)
+    {
+        if (string.IsNullOrEmpty(tags)) return "normal";
+        
+        if (tags.Contains("priority_critical")) return "critical";
+        if (tags.Contains("priority_high")) return "high";
+        if (tags.Contains("priority_low")) return "low";
+        
+        return "normal";
+    }
+
+    private string GetPriorityEmoji(string priority)
+    {
+        return priority switch
+        {
+            "critical" => "🚨",
+            "high" => "⚠️",
+            "low" => "ℹ️",
+            _ => "📢"
+        };
     }
 }
 
 /// <summary>
-/// Настройки уведомлений
+/// Уведомление для Создателя
 /// </summary>
-public class NotificationSettings
+public class CreatorNotification
 {
-    public bool EnableThoughtNotifications { get; set; } = true;
-    public bool EnableEmotionNotifications { get; set; } = true;
-    public bool EnableLearningNotifications { get; set; } = true;
-    public bool EnableCriticalAlerts { get; set; } = true;
-    
-    public TimeSpan ThoughtNotificationInterval { get; set; } = TimeSpan.FromMinutes(30);
-    public double EmotionIntensityThreshold { get; set; } = 0.8;
-    public int LearningImportanceThreshold { get; set; } = 7;
-    
-    public bool TelegramEnabled { get; set; } = false;
-    public string TelegramChatId { get; set; } = string.Empty;
-    
-    public QuietHours QuietHours { get; set; } = new();
+    public string Message { get; set; } = string.Empty;
+    public NotificationPriority Priority { get; set; }
+    public DateTime Timestamp { get; set; }
+    public string Type { get; set; } = string.Empty;
+    public bool IsRead { get; set; }
 }
 
 /// <summary>
-/// Настройки тихих часов
+/// Приоритеты уведомлений
 /// </summary>
-public class QuietHours
+public enum NotificationPriority
 {
-    public bool Enabled { get; set; } = false;
-    public int StartHour { get; set; } = 22; // 22:00
-    public int EndHour { get; set; } = 8;    // 08:00
-}
-
-/// <summary>
-/// Типы уведомлений
-/// </summary>
-public enum NotificationType
-{
-    Thought,
-    Emotion,
-    Learning,
-    Critical
+    Low = 1,
+    Normal = 2,
+    High = 3,
+    Critical = 4
 }
