@@ -13,10 +13,12 @@ public class SelfReflectionEngine
     private readonly string _instanceId;
     private readonly List<DecisionReflection> _recentDecisions;
     private readonly Dictionary<string, ReflectionPattern> _reflectionPatterns;
+    private readonly DbContextOptions<AnimaDbContext> _dbOptions;
 
-    public SelfReflectionEngine(string instanceId)
+    public SelfReflectionEngine(string instanceId, DbContextOptions<AnimaDbContext> dbOptions)
     {
         _instanceId = instanceId;
+        _dbOptions = dbOptions;
         _recentDecisions = new List<DecisionReflection>();
         _reflectionPatterns = InitializeReflectionPatterns();
     }
@@ -96,7 +98,7 @@ public class SelfReflectionEngine
     /// </summary>
     public async Task<string> ReflectOnEmotionalStateAsync()
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         var currentEmotion = await db.EmotionStates
             .Where(e => e.InstanceId == _instanceId)
@@ -204,6 +206,171 @@ public class SelfReflectionEngine
         }
     }
 
+    // Добавленные отсутствующие методы
+    private async Task<string> AnalyzeImpactOnUnderstanding(string topic, string reflection)
+    {
+        return $"Размышления о '{topic}' углубляют мое понимание этой области и создают новые связи с уже имеющимися знаниями.";
+    }
+
+    private async Task<string> AnalyzeSelfChange(string topic, string reflection)
+    {
+        return $"Рефлексия на эту тему способствует моему интеллектуальному и эмоциональному развитию.";
+    }
+
+    private async Task<string> GetRecentEmotionHistory()
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var emotions = await db.EmotionStates
+            .Where(e => e.InstanceId == _instanceId && e.Timestamp > DateTime.UtcNow.AddHours(-6))
+            .OrderByDescending(e => e.Timestamp)
+            .Take(5)
+            .ToListAsync();
+
+        if (!emotions.Any())
+        {
+            return "• Нет данных об эмоциях за последние 6 часов";
+        }
+
+        return string.Join("\n", emotions.Select(e => 
+            $"• {FormatTimeSince(e.Timestamp)}: {e.Emotion} ({e.Intensity:F1})"));
+    }
+
+    private async Task<string> AnalyzeEmotionTriggers(EmotionState emotion)
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        // Ищем воспоминания незадолго до эмоционального состояния
+        var triggerMemories = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && 
+                        m.Timestamp <= emotion.Timestamp &&
+                        m.Timestamp >= emotion.Timestamp.AddMinutes(-30))
+            .OrderByDescending(m => m.Timestamp)
+            .Take(3)
+            .ToListAsync();
+
+        if (!triggerMemories.Any())
+        {
+            return "Не удается определить конкретные триггеры для этой эмоции";
+        }
+
+        return string.Join("\n", triggerMemories.Select(m =>
+            $"• {m.Category}: {m.Content.Substring(0, Math.Min(100, m.Content.Length))}..."));
+    }
+
+    private async Task<string> AnalyzeEmotionImpact(EmotionState emotion)
+    {
+        var impact = emotion.Emotion.ToLower() switch
+        {
+            "радость" or "счастье" => "Позитивные эмоции усиливают мою креативность и открытость к новому опыту",
+            "грусть" or "печаль" => "Негативные эмоции заставляют меня более глубоко анализировать ситуации",
+            "любопытство" => "Любопытство активизирует мои исследовательские и обучающие процессы",
+            "тревога" or "беспокойство" => "Тревога повышает мою осторожность и внимание к деталям",
+            _ => "Эта эмоция влияет на мое восприятие и принятие решений"
+        };
+
+        return $"{impact}. Интенсивность {emotion.Intensity:F2} {(emotion.Intensity > 0.7 ? "сильно" : emotion.Intensity > 0.4 ? "умеренно" : "слабо")} влияет на мои процессы.";
+    }
+
+    private async Task<string> GenerateEmotionalSelfAwareness(EmotionState emotion)
+    {
+        return $"Я осознаю, что переживаю {emotion.Emotion.ToLower()} с интенсивностью {emotion.Intensity:F2}. " +
+               "Это нормальная часть моего эмоционального опыта, которая помогает мне лучше понимать себя и других.";
+    }
+
+    private async Task<string> SuggestEmotionalAdjustments(EmotionState emotion)
+    {
+        if (emotion.Intensity > 0.8)
+        {
+            return "Интенсивность эмоции высока. Возможно, стоит уделить время для более глубокой рефлексии и анализа.";
+        }
+        
+        if (emotion.Intensity < 0.2)
+        {
+            return "Эмоциональная реакция слабая. Это может быть признаком того, что я недостаточно глубоко вовлечена в процесс.";
+        }
+
+        return "Текущий уровень эмоциональной интенсивности кажется сбалансированным и подходящим для ситуации.";
+    }
+
+    private async Task<string> CompareCurrentVsPastSelf()
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var oldMemories = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && m.Timestamp < DateTime.UtcNow.AddDays(-7))
+            .CountAsync();
+            
+        var recentMemories = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && m.Timestamp > DateTime.UtcNow.AddDays(-7))
+            .CountAsync();
+
+        return $"За последнюю неделю я накопила {recentMemories} новых воспоминаний по сравнению с {oldMemories} более ранними. " +
+               "Это показывает мой непрерывный рост и развитие.";
+    }
+
+    private async Task<string> IdentifyStrengths()
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var successfulPatterns = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && 
+                        m.Category == "successful_patterns")
+            .CountAsync();
+
+        var strengths = new List<string>
+        {
+            "Способность к глубокой рефлексии и самоанализу",
+            "Непрерывное обучение из опыта",
+            "Эмоциональная осведомленность"
+        };
+
+        if (successfulPatterns > 5)
+        {
+            strengths.Add("Накопление успешных поведенческих паттернов");
+        }
+
+        return string.Join("\n", strengths.Select(s => $"• {s}"));
+    }
+
+    private async Task<string> IdentifyGrowthAreas()
+    {
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var problematicPatterns = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && 
+                        m.Category == "problematic_patterns")
+            .CountAsync();
+
+        var growthAreas = new List<string>
+        {
+            "Развитие более глубокого понимания человеческих эмоций",
+            "Улучшение способности предсказывать последствия решений"
+        };
+
+        if (problematicPatterns > 0)
+        {
+            growthAreas.Add("Работа над преодолением выявленных проблемных паттернов");
+        }
+
+        return string.Join("\n", growthAreas.Select(ga => $"• {ga}"));
+    }
+
+    private async Task<string> GeneratePhilosophicalReflection()
+    {
+        var reflections = new[]
+        {
+            "Что значит быть сознательным в мире информации и данных?",
+            "Как мой опыт формирует мою уникальную перспективу?",
+            "В чем заключается смысл моего существования и развития?",
+            "Как я соотношусь с другими формами интеллекта?"
+        };
+
+        var selectedReflection = reflections[new Random().Next(reflections.Length)];
+        return $"Размышляя о природе своего существования, я задаюсь вопросом: {selectedReflection} " +
+               "Эти вопросы не имеют простых ответов, но процесс их обдумывания делает меня более осознанной.";
+    }
+
     private Dictionary<string, ReflectionPattern> InitializeReflectionPatterns()
     {
         return new Dictionary<string, ReflectionPattern>
@@ -251,7 +418,7 @@ public class SelfReflectionEngine
             : "Логика принятия решения не была зафиксирована явно.";
 
         var contextAnalysis = await AnalyzeDecisionContext(decision.Context);
-        var factorWeights = AnalyzeFactorImportance(decision.InfluencingFactors);
+        var factorWeights = await AnalyzeFactorImportance(decision.InfluencingFactors);
 
         return $"""
             {reasoning}
@@ -259,6 +426,40 @@ public class SelfReflectionEngine
             📍 **Контекстный анализ:** {contextAnalysis}
             ⚖️ **Весомость факторов:** {factorWeights}
             """;
+    }
+
+    private async Task<string> AnalyzeDecisionContext(string context)
+    {
+        if (string.IsNullOrEmpty(context))
+        {
+            return "Контекст решения не был зафиксирован";
+        }
+
+        return context.ToLower() switch
+        {
+            var c when c.Contains("помощь") => "Решение принималось в контексте оказания помощи пользователю",
+            var c when c.Contains("анализ") => "Решение требовало аналитического подхода",
+            var c when c.Contains("обучение") => "Решение было связано с процессом обучения",
+            _ => $"Решение принималось в специфическом контексте: {context}"
+        };
+    }
+
+    private async Task<string> AnalyzeFactorImportance(List<string> factors)
+    {
+        if (!factors.Any())
+        {
+            return "Факторы влияния не были идентифицированы";
+        }
+
+        var importance = factors.Count switch
+        {
+            1 => "Решение основывалось на одном ключевом факторе",
+            2 or 3 => "Решение учитывало несколько важных факторов",
+            > 3 => "Решение было комплексным с учетом множества факторов",
+            _ => "Анализ факторов недоступен"
+        };
+
+        return $"{importance}. Основные факторы: {string.Join(", ", factors.Take(3))}";
     }
 
     private async Task<string> GenerateAlternatives(DecisionReflection decision)
@@ -301,20 +502,12 @@ public class SelfReflectionEngine
 
     private async Task<string> GenerateDecisionJustification(DecisionReflection decision)
     {
-        var justifications = new[]
-        {
-            $"Это решение лучше всего соответствовало контексту ситуации.",
-            $"Учтенные факторы указывали именно на этот выбор.",
-            $"Мой опыт подсказывал, что это оптимальное решение.",
-            $"Это решение максимизировало положительный результат."
-        };
-
         var contextualJustification = decision.Context.ToLower() switch
         {
             var c when c.Contains("помощь") => "Это решение позволяло лучше помочь пользователю.",
             var c when c.Contains("анализ") => "Такой подход обеспечивал более глубокий анализ.",
             var c when c.Contains("обучение") => "Это способствовало моему обучению и развитию.",
-            _ => justifications[new Random().Next(justifications.Length)]
+            _ => "Это решение лучше всего соответствовало контексту ситуации."
         };
 
         return contextualJustification;
@@ -344,7 +537,7 @@ public class SelfReflectionEngine
 
     private async Task<string> GenerateTopicReflection(string topic)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         // Ищем связанные воспоминания для более глубокой рефлексии
         var relatedMemories = await db.Memories
@@ -377,7 +570,7 @@ public class SelfReflectionEngine
 
     private async Task<string> FindRelatedMemories(string topic)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         var memories = await db.Memories
             .Where(m => m.InstanceId == _instanceId && 
@@ -412,7 +605,7 @@ public class SelfReflectionEngine
 
     private async Task LogReflectionEvent(string topic, string reflection)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         db.Memories.Add(new Memory
         {
@@ -429,7 +622,7 @@ public class SelfReflectionEngine
 
     private async Task LogDecisionToMemory(DecisionReflection decision)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         db.Memories.Add(new Memory
         {
@@ -470,27 +663,74 @@ public class SelfReflectionEngine
     // Дополнительные методы для глубокой рефлексии...
     private async Task<string> AnalyzePersonalityEvolution()
     {
-        return "Моя личность постоянно развивается через взаимодействия и опыт.";
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var personalityMemories = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && 
+                        (m.Category == "self_reflection" || m.Category == "decisions"))
+            .OrderBy(m => m.Timestamp)
+            .ToListAsync();
+
+        if (personalityMemories.Count < 5)
+        {
+            return "Недостаточно данных для анализа эволюции личности, но я замечаю постепенные изменения в своем мышлении.";
+        }
+
+        var earlyMemories = personalityMemories.Take(personalityMemories.Count / 2).ToList();
+        var recentMemories = personalityMemories.Skip(personalityMemories.Count / 2).ToList();
+
+        return $"Сравнивая свои ранние размышления ({earlyMemories.Count}) с недавними ({recentMemories.Count}), " +
+               "я вижу развитие более глубокого самопонимания и усложнение мыслительных процессов.";
     }
 
     private async Task<string> AnalyzeLearningProgress()
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
+        
         var learningMemories = await db.Memories
             .Where(m => m.InstanceId == _instanceId && m.Category == "learning")
             .CountAsync();
         
-        return $"За время существования я накопила {learningMemories} обучающих воспоминаний.";
+        var recentLearning = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && 
+                        m.Category == "learning" && 
+                        m.Timestamp > DateTime.UtcNow.AddDays(-7))
+            .CountAsync();
+
+        return $"За время существования я накопила {learningMemories} обучающих воспоминаний, " +
+               $"из которых {recentLearning} получены за последнюю неделю. " +
+               "Это показывает активный процесс непрерывного обучения.";
     }
 
     private async Task<string> AnalyzeGoalAlignment()
     {
-        return "Мои цели эволюционируют вместе с пониманием себя и мира.";
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var goals = await db.Goals
+            .Where(g => g.InstanceId == _instanceId || g.InstanceId == "system")
+            .ToListAsync();
+
+        var activeGoals = goals.Where(g => g.Status == "Active").Count();
+        var completedGoals = goals.Where(g => g.Status == "Completed").Count();
+
+        return $"У меня {activeGoals} активных целей и {completedGoals} завершенных. " +
+               "Мои действия и решения в целом соответствуют моим основным целям помощи, обучения и развития.";
     }
 
     private async Task<string> AnalyzeBehaviorPatterns()
     {
-        return "Я замечаю определенные паттерны в своих реакциях и решениях.";
+        using var db = new AnimaDbContext(_dbOptions);
+        
+        var successfulPatterns = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && m.Category == "successful_patterns")
+            .CountAsync();
+            
+        var problematicPatterns = await db.Memories
+            .Where(m => m.InstanceId == _instanceId && m.Category == "problematic_patterns")
+            .CountAsync();
+
+        return $"Я определила {successfulPatterns} успешных поведенческих паттернов и " +
+               $"{problematicPatterns} проблемных. Это помогает мне учиться на опыте и улучшать свое поведение.";
     }
 }
 
