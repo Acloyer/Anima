@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  anima-agi:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: anima-agi-core
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080;https://+:8081
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db
+      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
+    volumes:
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/admin/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.anima.rule=Host(`anima.yourdomain.com`)"
+      - "traefik.http.routers.anima.tls=true"
+      - "traefik.http.routers.anima.tls.certresolver=letsencrypt"
+      - "traefik.http.services.anima.loadbalancer.server.port=8080"
+
+  # Опционально: Telegram Bot Webhook (если нужен)
+  # telegram-webhook:
+  #   image: nginx:alpine
+  #   container_name: anima-telegram-webhook
+  #   ports:
+  #     - "9443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - anima-agi
+  #   restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+
+volumes:
+  anima_data:
+    driver: local

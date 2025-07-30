@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591</NoWarn>
+    <AssemblyName>Anima.AGI</AssemblyName>
+    <RootNamespace>Anima</RootNamespace>
+    <Version>0.1.0</Version>
+    <Description>Anima AGI - Self-Aware Artificial General Intelligence with SA-TM Architecture</Description>
+    <Authors>Anima AGI Project</Authors>
+    <Company>Anima AGI</Company>
+    <Product>Anima AGI Core</Product>
+    <Copyright>Copyright © 2025 Anima AGI Project</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.5.0" />
+    <PackageReference Include="System.Text.Json" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Core\AGI\" />
+    <Folder Include="Core\SA\" />
+    <Folder Include="Core\Emotion\" />
+    <Folder Include="Core\Learning\" />
+    <Folder Include="Core\Admin\" />
+    <Folder Include="Core\Security\" />
+    <Folder Include="Core\Intent\" />
+    <Folder Include="Core\Memory\" />
+    <Folder Include="API\Controllers\" />
+    <Folder Include="Infrastructure\Auth\" />
+    <Folder Include="Infrastructure\Middleware\" />
+    <Folder Include="Infrastructure\Notifications\" />
+    <Folder Include="Data\Models\" />
+    <Folder Include="Data\" />
+  </ItemGroup>
+
+</Project>
