@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Anima.Data.Models;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Anima.Data;
 
@@ -9,6 +11,11 @@ namespace Anima.Data;
 public class AnimaDbContext : DbContext
 {
     public AnimaDbContext(DbContextOptions<AnimaDbContext> options) : base(options)
+    {
+    }
+
+    // Конструктор для использования со строкой подключения по умолчанию
+    public AnimaDbContext() : base()
     {
     }
 
@@ -22,6 +29,22 @@ public class AnimaDbContext : DbContext
     // Системные таблицы
     public DbSet<ApiKey> ApiKeys { get; set; }
     public DbSet<RequestLog> RequestLogs { get; set; }
+    public DbSet<APIKey> APIKeys { get; set; } // Для совместимости
+    public DbSet<UserSession> UserSessions { get; set; }
+    public DbSet<SystemConfig> SystemConfigs { get; set; }
+    public DbSet<LearningData> LearningData { get; set; }
+    public DbSet<UserProfile> UserProfiles { get; set; }
+    public DbSet<SystemAudit> SystemAudits { get; set; }
+    public DbSet<PerformanceMetric> PerformanceMetrics { get; set; }
+    public DbSet<SystemBackup> SystemBackups { get; set; }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        if (!optionsBuilder.IsConfigured)
+        {
+            optionsBuilder.UseSqlite("Data Source=anima.db");
+        }
+    }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -39,6 +62,10 @@ public class AnimaDbContext : DbContext
         modelBuilder.Entity<Memory>()
             .HasIndex(m => m.Timestamp)
             .HasDatabaseName("IX_Memories_Timestamp");
+
+        modelBuilder.Entity<Memory>()
+            .HasIndex(m => m.Importance)
+            .HasDatabaseName("IX_Memories_Importance");
 
         modelBuilder.Entity<EmotionState>()
             .HasIndex(e => e.InstanceId)
@@ -81,6 +108,15 @@ public class AnimaDbContext : DbContext
             .HasIndex(a => a.UserId)
             .HasDatabaseName("IX_ApiKeys_UserId");
 
+        modelBuilder.Entity<APIKey>()
+            .HasIndex(a => a.KeyHash)
+            .IsUnique()
+            .HasDatabaseName("IX_APIKeys_KeyHash");
+
+        modelBuilder.Entity<APIKey>()
+            .HasIndex(a => a.UserId)
+            .HasDatabaseName("IX_APIKeys_UserId");
+
         modelBuilder.Entity<RequestLog>()
             .HasIndex(r => r.ApiKeyHash)
             .HasDatabaseName("IX_RequestLogs_ApiKeyHash");
@@ -89,10 +125,17 @@ public class AnimaDbContext : DbContext
             .HasIndex(r => r.Timestamp)
             .HasDatabaseName("IX_RequestLogs_Timestamp");
 
+        modelBuilder.Entity<SystemConfig>()
+            .HasKey(sc => sc.Key);
+
         // Ограничения и правила
         modelBuilder.Entity<Memory>()
             .Property(m => m.Importance)
             .HasDefaultValue(5);
+
+        modelBuilder.Entity<Memory>()
+            .Property(m => m.Content)
+            .HasMaxLength(10000);
 
         modelBuilder.Entity<EmotionState>()
             .Property(e => e.Intensity)
@@ -121,6 +164,10 @@ public class AnimaDbContext : DbContext
         modelBuilder.Entity<ApiKey>()
             .Property(a => a.RequestCount)
             .HasDefaultValue(0);
+
+        modelBuilder.Entity<APIKey>()
+            .Property(a => a.KeyHash)
+            .HasMaxLength(512);
 
         // Начальные данные (seed data)
         SeedData(modelBuilder);
