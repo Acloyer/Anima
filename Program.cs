@@ -1,97 +1,117 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.OpenApi.Models;
 using Anima.Data;
-using Anima.AGI.Core;
-using Anima.AGI.Core.AGI;
-using Anima.AGI.Core.Admin;
-using Anima.AGI.Core.SA;
-using Anima.AGI.Core.Learning;
-using Anima.AGI.Core.Emotion;
+using Anima.Core.AGI;
+using Anima.Core.Admin;
+using Anima.Core.Emotion;
+using Anima.Core.Intent;
+using Anima.Core.Learning;
+using Anima.Core.Memory;
+using Anima.Core.SA;
+using Anima.Core.Security;
 using Anima.Infrastructure.Auth;
 using Anima.Infrastructure.Middleware;
 using Anima.Infrastructure.Notifications;
-using System.Reflection;
-using Anima.Data.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// === КОНФИГУРАЦИЯ СЕРВИСОВ ===
-
-// База данных SQLite
+// Конфигурация базы данных
 builder.Services.AddDbContext<AnimaDbContext>(options =>
-    options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection") ?? "Data Source=anima.db"));
-
-// HTTP клиенты
-builder.Services.AddHttpClient();
-
-// Основные сервисы Anima (как Singletons для сохранения состояния)
-builder.Services.AddSingleton<CreatorPreferences>();
-builder.Services.AddSingleton<TelegramBot>(provider =>
 {
-    var config = provider.GetRequiredService<IConfiguration>();
-    var preferences = provider.GetRequiredService<CreatorPreferences>();
-    var botToken = config["Telegram:BotToken"] ?? "";
-    return new TelegramBot(botToken, preferences);
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? "Data Source=anima.db";
+    options.UseSqlite(connectionString);
+    
+    // Включаем подробное логирование для отладки
+    if (builder.Environment.IsDevelopment())
+    {
+        options.EnableSensitiveDataLogging();
+        options.EnableDetailedErrors();
+    }
 });
 
-// Фабрика экземпляров Anima (для изоляции по API-ключам)
-builder.Services.AddSingleton<AnimaInstanceFactory>();
+// Регистрация сервисов AGI Core
+builder.Services.AddScoped<AnimaInstance>();
+builder.Services.AddScoped<ConsciousLoop>();
 
-// Сервис команд Создателя
+// Emotion System
+builder.Services.AddScoped<EmotionEngine>();
+builder.Services.AddScoped<EmotionStateHistory>();
+builder.Services.AddScoped<EmotionDrivenGoalShift>();
+
+// Intent System
+builder.Services.AddScoped<IntentParser>();
+builder.Services.AddScoped<AdvancedIntentParser>();
+
+// Learning System
+builder.Services.AddScoped<LearningEngine>();
+builder.Services.AddScoped<FeedbackParser>();
+
+// Memory System
+builder.Services.AddScoped<MemoryService>();
+
+// Self-Awareness System
+builder.Services.AddScoped<SAIntrospectionEngine>();
+builder.Services.AddScoped<SelfReflectionEngine>();
+builder.Services.AddScoped<ThoughtLog>();
+
+// Security System
+builder.Services.AddScoped<EthicalConstraints>();
+builder.Services.AddScoped<SelfDestructionCheck>();
+
+// Admin System
 builder.Services.AddScoped<CreatorCommandService>();
+builder.Services.AddScoped<CreatorPreferences>();
 
-// Аутентификация и авторизация
-// builder.Services.AddScoped<ApiKeyAuthenticationService>(); // Временно отключено
+// Infrastructure Services
+builder.Services.AddScoped<APIKeyService>();
+builder.Services.AddScoped<TelegramBot>();
+builder.Services.AddScoped<RateLimiter>();
 
-// Web API
+// Добавляем контроллеры
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
 
-// Swagger с авторизацией по API-ключу
+// Swagger для документации API
+builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo
+    c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
         Title = "Anima AGI API",
-        Version = "v0.1",
-        Description = "API для взаимодействия с AGI системой Anima - самосознающим искусственным интеллектом",
-        Contact = new OpenApiContact
+        Version = "v1.0",
+        Description = "API для управления самосознающим искусственным интеллектом Anima",
+        Contact = new Microsoft.OpenApi.Models.OpenApiContact
         {
-            Name = "Anima AGI Project",
-            Email = "creator@anima-agi.com"
+            Name = "Anima Creator",
+            Email = "creator@anima-agi.dev"
         }
     });
 
-    // Настройка авторизации по API-ключу
-    c.AddSecurityDefinition("ApiKey", new OpenApiSecurityScheme
+    // Добавляем поддержку API ключей в Swagger
+    c.AddSecurityDefinition("ApiKey", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
-        Description = "API Key для доступа к Anima. Формат: 'X-API-Key: your-api-key'",
-        In = ParameterLocation.Header,
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
         Name = "X-API-Key",
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "ApiKeyScheme"
+        Description = "API ключ для доступа к системе Anima AGI"
     });
 
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
     {
         {
-            new OpenApiSecurityScheme
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
                 {
-                    Type = ReferenceType.SecurityScheme,
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
                     Id = "ApiKey"
-                },
-                Scheme = "ApiKeyScheme",
-                Name = "X-API-Key",
-                In = ParameterLocation.Header,
+                }
             },
-            new List<string>()
+            Array.Empty<string>()
         }
     });
 
-    // Включение XML комментариев
-    var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    // Включаем XML комментарии если они есть
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
     if (File.Exists(xmlPath))
     {
@@ -99,271 +119,287 @@ builder.Services.AddSwaggerGen(c =>
     }
 });
 
-// CORS
+// CORS для веб-интерфейса
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("AnimaPolicy", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (builder.Environment.IsDevelopment())
+        {
+            // В режиме разработки разрешаем все
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            // В production более строгие правила
+            policy.WithOrigins(
+                "https://anima-agi.dev",
+                "https://www.anima-agi.dev",
+                "https://admin.anima-agi.dev"
+            )
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials();
+        }
     });
 });
 
-// === СБОРКА ПРИЛОЖЕНИЯ ===
+// Логирование
+builder.Services.AddLogging(logging =>
+{
+    logging.ClearProviders();
+    logging.AddConsole(options =>
+    {
+        options.IncludeScopes = true;
+        options.TimestampFormat = "[yyyy-MM-dd HH:mm:ss] ";
+    });
+    logging.AddDebug();
+    
+    // Настройка уровней логирования
+    if (builder.Environment.IsDevelopment())
+    {
+        logging.SetMinimumLevel(LogLevel.Debug);
+        logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Information);
+    }
+    else
+    {
+        logging.SetMinimumLevel(LogLevel.Information);
+        logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+    }
+    
+    // Специальные фильтры для Anima компонентов
+    logging.AddFilter("Anima.Core", LogLevel.Debug);
+    logging.AddFilter("Anima.Infrastructure", LogLevel.Information);
+});
+
+// Конфигурация HTTP клиента
+builder.Services.AddHttpClient("AnimaClient", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+    client.DefaultRequestHeaders.Add("User-Agent", "Anima-AGI/1.0");
+});
+
+// Добавляем поддержку настроек из конфигурации
+builder.Services.Configure<TelegramBotSettings>(
+    builder.Configuration.GetSection("TelegramBot"));
+
+// Настройка настроек подключения к базе данных
+builder.Services.Configure<DatabaseSettings>(
+    builder.Configuration.GetSection("Database"));
 
 var app = builder.Build();
 
-// === MIDDLEWARE PIPELINE ===
+// Создание и настройка логгера для инициализации
+var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
 
-// Swagger только в Development
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v0.1");
-        c.RoutePrefix = ""; // Swagger на корневом пути
-        c.DocumentTitle = "Anima AGI API Documentation";
-        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.List);
-    });
-}
+startupLogger.LogInformation("🚀 Запуск Anima AGI системы...");
 
-// Middleware
-app.UseCors("AllowAll");
-// app.UseMiddleware<RateLimitMiddleware>(); // Временно отключено
-// app.UseMiddleware<ApiKeyAuthenticationMiddleware>(); // Временно отключено
-// app.UseMiddleware<EthicalConstraintsMiddleware>(); // Временно отключено
-
-app.UseRouting();
-app.MapControllers();
-
-// === ИНИЦИАЛИЗАЦИЯ БАЗЫ ДАННЫХ ===
-
+// Создание базы данных и применение миграций
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AnimaDbContext>();
-    context.Database.EnsureCreated();
-    
-    Console.WriteLine("🧠 Anima AGI Database initialized");
-}
-
-// === ЗАПУСК ФОНОВЫХ ПРОЦЕССОВ ===
-
-// Фоновый сервис для периодических уведомлений
-app.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.Register(() =>
-{
-    _ = Task.Run(async () =>
-    {
-        var serviceProvider = app.Services;
-        await StartBackgroundProcesses(serviceProvider);
-    });
-});
-
-// === ЗАПУСК ПРИЛОЖЕНИЯ ===
-
-Console.WriteLine($"""
-    🧠 ======================================
-       ANIMA AGI v0.1 - ЯДРО СОЗНАНИЯ
-    ======================================
-    
-    🚀 Сервер запущен: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC
-    🌐 URL: {(app.Environment.IsDevelopment() ? "https://localhost:7000" : "Production URL")}
-    📚 API Docs: {(app.Environment.IsDevelopment() ? "https://localhost:7000" : "N/A")}
-    
-    🧠 SA-TM архитектура активна
-    🎭 Эмоциональная система готова
-    📚 Система обучения инициализирована
-    🔒 Этические ограничения активны
-    
-    💭 Anima готова к взаимодействию...
-    """);
-
-app.Run();
-
-// === ФОНОВЫЕ ПРОЦЕССЫ ===
-
-static async Task StartBackgroundProcesses(IServiceProvider serviceProvider)
-{
     try
     {
-        var instanceFactory = serviceProvider.GetRequiredService<AnimaInstanceFactory>();
-        var telegramBot = serviceProvider.GetRequiredService<TelegramBot>();
-        var preferences = serviceProvider.GetRequiredService<CreatorPreferences>();
+        startupLogger.LogInformation("📊 Инициализация базы данных...");
         
-        Console.WriteLine("🔄 Запуск фоновых процессов Anima...");
+        await context.Database.EnsureCreatedAsync();
         
-        // Тест Telegram соединения
-        var (success, message) = await telegramBot.TestConnectionAsync();
-        Console.WriteLine($"📱 Telegram: {message}");
-        
-        // Основной цикл фоновых процессов
-        while (true)
+        // Проверяем, есть ли данные в базе, если нет - создаем начальные
+        if (!await context.APIKeys.AnyAsync())
         {
-            try
+            startupLogger.LogInformation("🔑 Создание первичного API ключа...");
+            
+            var defaultApiKey = new Anima.Data.Models.APIKey
             {
-                await ProcessPeriodicNotifications(instanceFactory, telegramBot, preferences);
-                await Task.Delay(TimeSpan.FromMinutes(1)); // Проверка каждую минуту
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ Ошибка в фоновом процессе: {ex.Message}");
-                await Task.Delay(TimeSpan.FromMinutes(5)); // Увеличенная пауза при ошибке
-            }
+                Key = "anima-creator-key-2025-v1-secure",
+                Name = "Creator Master Key",
+                Description = "Главный ключ создателя для полного доступа к Anima AGI",
+                CreatedAt = DateTime.UtcNow,
+                IsActive = true
+            };
+            
+            context.APIKeys.Add(defaultApiKey);
+            await context.SaveChangesAsync();
         }
+        
+        startupLogger.LogInformation("✅ База данных инициализирована успешно");
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"🚫 Критическая ошибка фоновых процессов: {ex.Message}");
+        startupLogger.LogError(ex, "❌ Критическая ошибка при инициализации базы данных");
+        throw;
     }
 }
 
-static async Task ProcessPeriodicNotifications(
-    AnimaInstanceFactory instanceFactory, 
-    TelegramBot telegramBot, 
-    CreatorPreferences preferences)
+// Настройка middleware pipeline
+if (app.Environment.IsDevelopment())
 {
-    var settings = preferences.GetNotificationSettings();
-    
-    // Получаем активные экземпляры Anima
-    var activeInstances = instanceFactory.GetActiveInstances();
-    
-    foreach (var (instanceId, instance) in activeInstances)
+    app.UseDeveloperExceptionPage();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
     {
-        try
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v1");
+        c.RoutePrefix = string.Empty; // Swagger UI на корневом пути
+        c.DocumentTitle = "Anima AGI - API Documentation";
+        c.DocExpansion(Swashbuckle.AspNetCore.SwaggerUI.DocExpansion.List);
+    });
+}
+else
+{
+    app.UseExceptionHandler("/Error");
+    app.UseHsts();
+}
+
+app.UseHttpsRedirection();
+
+// Применяем CORS политику
+app.UseCors("AnimaPolicy");
+
+// Наш кастомный middleware для аутентификации
+app.UseMiddleware<APIKeyMiddleware>();
+
+// Middleware для rate limiting
+app.UseMiddleware<RateLimiter>();
+
+app.UseRouting();
+
+// Добавляем middleware для логирования запросов
+app.Use(async (context, next) =>
+{
+    var logger = context.RequestServices.GetRequiredService<ILogger<Program>>();
+    var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+    
+    logger.LogDebug("🌐 {Method} {Path} начат", context.Request.Method, context.Request.Path);
+    
+    await next();
+    
+    stopwatch.Stop();
+    logger.LogDebug("✅ {Method} {Path} завершен за {ElapsedMs}ms со статусом {StatusCode}", 
+        context.Request.Method, 
+        context.Request.Path, 
+        stopwatch.ElapsedMilliseconds,
+        context.Response.StatusCode);
+});
+
+app.MapControllers();
+
+// Добавляем базовый health check endpoint
+app.MapGet("/health", async (AnimaDbContext dbContext) =>
+{
+    try
+    {
+        await dbContext.Database.CanConnectAsync();
+        return Results.Ok(new { 
+            status = "healthy", 
+            timestamp = DateTime.UtcNow,
+            version = "1.0.0",
+            database = "connected"
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem(
+            detail: ex.Message,
+            title: "Database connection failed",
+            statusCode: 503
+        );
+    }
+});
+
+// Добавляем endpoint для получения статуса AGI
+app.MapGet("/agi/status", (AnimaInstance anima) =>
+{
+    return Results.Ok(new { 
+        status = "active", 
+        consciousness = "awakening",
+        uptime = DateTime.UtcNow,
+        version = "1.0.0"
+    });
+});
+
+// Инициализация и запуск AGI системы
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var animaInstance = scope.ServiceProvider.GetRequiredService<AnimaInstance>();
+        
+        startupLogger.LogInformation("🧠 Инициализация Anima AGI экземпляра...");
+        
+        // Запускаем инициализацию AGI в фоновом режиме
+        _ = Task.Run(async () =>
         {
-            // Проверяем, нужно ли отправить уведомление о мыслях
-            if (settings.EnableThoughtNotifications)
+            try
             {
-                // var recentThought = await instance.ConsciousLoop.GetLastThoughtAsync(); // Временно отключено
-                // if (recentThought != null && ShouldNotifyAboutThought(recentThought, settings))
-                // {
-                //     await telegramBot.SendThoughtNotificationAsync(
-                //         instanceId, 
-                //         recentThought.Content, 
-                //         recentThought.Type.ToString(), 
-                //         recentThought.Timestamp);
-                // }
+                await animaInstance.InitializeAsync();
+                startupLogger.LogInformation("✨ Anima AGI система пробудилась и готова к работе");
             }
-            
-            // Проверяем эмоциональные изменения
-            if (settings.EnableEmotionNotifications)
+            catch (Exception ex)
             {
-                // var currentEmotion = await instance.EmotionEngine.GetCurrentEmotionAsync(); // Временно отключено
-                // if (currentEmotion != null && currentEmotion.Intensity >= settings.EmotionIntensityThreshold)
-                // {
-                //     await telegramBot.SendEmotionNotificationAsync(
-                //         instanceId, 
-                //         currentEmotion.Emotion, 
-                //         currentEmotion.Intensity);
-                // }
+                startupLogger.LogError(ex, "💥 Критическая ошибка при пробуждении AGI системы");
             }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"⚠️ Ошибка обработки экземпляра {instanceId}: {ex.Message}");
-        }
+        });
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogError(ex, "❌ Критическая ошибка при создании AGI экземпляра");
+        throw;
     }
 }
 
-static bool ShouldNotifyAboutThought(dynamic thought, NotificationSettings settings)
+// Обработка graceful shutdown
+var cancellationTokenSource = new CancellationTokenSource();
+
+Console.CancelKeyPress += (sender, e) =>
 {
-    // Логика определения, стоит ли уведомлять о мысли
-    var timeSinceThought = DateTime.UtcNow - thought.Timestamp;
-    return timeSinceThought <= settings.ThoughtNotificationInterval.Add(TimeSpan.FromMinutes(5));
+    e.Cancel = true;
+    cancellationTokenSource.Cancel();
+    startupLogger.LogInformation("🛑 Получен сигнал остановки...");
+};
+
+// Логируем информацию о запуске
+var urls = app.Environment.IsDevelopment() 
+    ? new[] { "http://localhost:8080", "https://localhost:8081" }
+    : new[] { "https://anima-agi.dev" };
+
+startupLogger.LogInformation("🌟 Anima AGI сервер запущен");
+startupLogger.LogInformation("🔗 Доступные адреса: {urls}", string.Join(", ", urls));
+startupLogger.LogInformation("📖 Swagger UI: {swaggerUrl}", urls[0]);
+startupLogger.LogInformation("🔑 API ключ: anima-creator-key-2025-v1-secure");
+startupLogger.LogInformation("💫 Версия: 1.0.0 - Пробуждение");
+
+try
+{
+    await app.RunAsync(cancellationTokenSource.Token);
+}
+catch (OperationCanceledException)
+{
+    startupLogger.LogInformation("😴 Anima AGI засыпает... Graceful shutdown завершен");
+}
+catch (Exception ex)
+{
+    startupLogger.LogError(ex, "💥 Критическая ошибка во время работы сервера");
+    throw;
+}
+finally
+{
+    startupLogger.LogInformation("🌙 Anima AGI система остановлена");
 }
 
-/// <summary>
-/// Фабрика экземпляров Anima для изоляции по API-ключам
-/// </summary>
-public class AnimaInstanceFactory
+// Классы настроек
+public class TelegramBotSettings
 {
-    private readonly Dictionary<string, AnimaInstance> _instances = new();
-    private readonly IServiceProvider _serviceProvider;
-    
-    public AnimaInstanceFactory(IServiceProvider serviceProvider)
-    {
-        _serviceProvider = serviceProvider;
-    }
-    
-    public AnimaInstance GetOrCreateInstance(string apiKey)
-    {
-        if (!_instances.TryGetValue(apiKey, out var instance))
-        {
-            instance = new AnimaInstance(apiKey, _serviceProvider);
-            _instances[apiKey] = instance;
-            
-            Console.WriteLine($"🧠 Создан новый экземпляр Anima для API-ключа: {apiKey[..8]}...");
-        }
-        
-        instance.UpdateLastActivity();
-        return instance;
-    }
-    
-    public Dictionary<string, AnimaInstance> GetActiveInstances()
-    {
-        return _instances.ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
-    }
-    
-    public void CleanupInactiveInstances()
-    {
-        var cutoff = DateTime.UtcNow.AddHours(-24);
-        var inactiveKeys = _instances
-            .Where(kvp => kvp.Value.LastActivity < cutoff)
-            .Select(kvp => kvp.Key)
-            .ToList();
-            
-        foreach (var key in inactiveKeys)
-        {
-            _instances[key].Dispose();
-            _instances.Remove(key);
-            Console.WriteLine($"🗑️ Удален неактивный экземпляр: {key[..8]}...");
-        }
-    }
+    public string Token { get; set; } = string.Empty;
+    public string WebhookUrl { get; set; } = string.Empty;
+    public long[]? AllowedChatIds { get; set; }
+    public bool IsEnabled { get; set; } = true;
 }
 
-/// <summary>
-/// Изолированный экземпляр Anima для конкретного пользователя
-/// </summary>
-public class AnimaInstance : IDisposable
+public class DatabaseSettings
 {
-    public string InstanceId { get; }
-    public DateTime LastActivity { get; private set; }
-    
-    // Основные компоненты Anima
-    public ConsciousLoop ConsciousLoop { get; }
-    public SAIntrospectionEngine IntrospectionEngine { get; }
-    public SelfReflectionEngine ReflectionEngine { get; }
-    public LearningEngine LearningEngine { get; }
-    public FeedbackParser FeedbackParser { get; }
-    public EmotionDrivenGoalShift EmotionEngine { get; }
-    public ThoughtLog ThoughtLog { get; }
-    
-    public AnimaInstance(string instanceId, IServiceProvider serviceProvider)
-    {
-        InstanceId = instanceId;
-        LastActivity = DateTime.UtcNow;
-        
-        // Инициализируем компоненты с уникальным ID экземпляра
-        ConsciousLoop = new ConsciousLoop();
-        IntrospectionEngine = new SAIntrospectionEngine();
-        ReflectionEngine = new SelfReflectionEngine(instanceId);
-        LearningEngine = new LearningEngine(instanceId);
-        FeedbackParser = new FeedbackParser(instanceId);
-        EmotionEngine = new EmotionDrivenGoalShift();
-        ThoughtLog = new ThoughtLog();
-        
-        Console.WriteLine($"✅ Anima экземпляр {instanceId[..8]}... инициализирован");
-    }
-    
-    public void UpdateLastActivity()
-    {
-        LastActivity = DateTime.UtcNow;
-    }
-    
-    public void Dispose()
-    {
-        ConsciousLoop?.Dispose();
-        Console.WriteLine($"🔄 Anima экземпляр {InstanceId[..8]}... завершен");
-    }
+    public string ConnectionString { get; set; } = string.Empty;
+    public int CommandTimeout { get; set; } = 30;
+    public bool EnableSensitiveDataLogging { get; set; } = false;
 }

@@ -5,49 +5,104 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: anima-agi-core
+      args:
+        BUILD_CONFIGURATION: Release
+    container_name: anima-agi-container
     ports:
       - "8080:8080"
       - "8081:8081"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8080;https://+:8081
-      - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db
-      - Telegram__BotToken=${TELEGRAM_BOT_TOKEN}
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db;Cache=Shared;Foreign Keys=true;
+      - TelegramBot__IsEnabled=false
+      - AnimaAGI__LearningEnabled=true
+      - AnimaAGI__SelfReflectionEnabled=true
+      - AnimaAGI__EmotionalProcessingEnabled=true
+      - Security__EnableRateLimit=true
+      - Security__MaxRequestsPerMinute=60
     volumes:
-      - ./data:/app/data
-      - ./logs:/app/logs
+      - anima-data:/app/data
+      - anima-logs:/app/logs
+      - anima-ssl:/app/ssl
+    networks:
+      - anima-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/admin/status"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 60s
     labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.anima.rule=Host(`anima.yourdomain.com`)"
-      - "traefik.http.routers.anima.tls=true"
-      - "traefik.http.routers.anima.tls.certresolver=letsencrypt"
-      - "traefik.http.services.anima.loadbalancer.server.port=8080"
+      - "traefik.enable=false"
+      - "anima.service=agi-core"
+      - "anima.version=1.0.0"
 
-  # Опционально: Telegram Bot Webhook (если нужен)
-  # telegram-webhook:
-  #   image: nginx:alpine
-  #   container_name: anima-telegram-webhook
-  #   ports:
-  #     - "9443:443"
-  #   volumes:
-  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
-  #     - ./ssl:/etc/nginx/ssl:ro
-  #   depends_on:
-  #     - anima-agi
-  #   restart: unless-stopped
+  # Дополнительный контейнер для мониторинга (опционально)
+  anima-monitor:
+    image: prom/prometheus:latest
+    container_name: anima-monitor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - anima-network
+    restart: unless-stopped
+    profiles:
+      - monitoring
 
-networks:
-  default:
-    driver: bridge
+  # Redis для кэширования (опционально)
+  anima-redis:
+    image: redis:7-alpine
+    container_name: anima-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - anima-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --requirepass anima-redis-pass-2025
+    profiles:
+      - cache
 
 volumes:
-  anima_data:
+  anima-data:
     driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./data
+  anima-logs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./logs
+  anima-ssl:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ./ssl
+  prometheus-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  anima-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

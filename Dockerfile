@@ -1,34 +1,73 @@
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+# Используем официальный .NET 8.0 SDK образ для сборки
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+
+# Устанавливаем рабочую директорию
+WORKDIR /src
+
+# Копируем файл проекта
+COPY ["Anima.AGI.csproj", "."]
+
+# Восстанавливаем зависимости
+RUN dotnet restore "Anima.AGI.csproj"
+
+# Копируем весь исходный код
+COPY . .
+
+# Устанавливаем рабочую директорию для сборки
+WORKDIR "/src"
+
+# Собираем проект в Release режиме
+ARG BUILD_CONFIGURATION=Release
+RUN dotnet build "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/build --no-restore
+
+# Этап публикации
+FROM build AS publish
+RUN dotnet publish "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/publish --no-restore --no-build
+
+# Используем runtime образ для финального контейнера
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+
+# Устанавливаем необходимые пакеты
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Создаем пользователя без root прав
+RUN adduser --disabled-password --gecos '' anima && \
+    mkdir -p /app/logs /app/ssl /app/data && \
+    chown -R anima:anima /app
+
+# Устанавливаем рабочую директорию
 WORKDIR /app
+
+# Копируем опубликованные файлы
+COPY --from=publish /app/publish .
+
+# Создаем необходимые директории
+RUN mkdir -p logs ssl data
+
+# Устанавливаем права доступа
+RUN chown -R anima:anima /app && \
+    chmod +x /app/Anima.AGI
+
+# Переключаемся на пользователя anima
+USER anima
+
+# Открываем порты
 EXPOSE 8080
 EXPOSE 8081
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-ARG BUILD_CONFIGURATION=Release
-WORKDIR /src
-COPY ["Anima.AGI.csproj", "."]
-RUN dotnet restore "Anima.AGI.csproj"
-COPY . .
-WORKDIR "/src"
-RUN dotnet build "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/build
+# Устанавливаем переменные окружения
+ENV ASPNETCORE_URLS=http://+:8080;https://+:8081
+ENV ASPNETCORE_ENVIRONMENT=Production
+ENV DOTNET_RUNNING_IN_CONTAINER=true
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 
-FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 
-FROM base AS final
-WORKDIR /app
-COPY --from=publish /app/publish .
-
-# Создаем директории для данных
-RUN mkdir -p /app/data
-RUN chmod 755 /app/data
-
-# Создаем пользователя для безопасности
-RUN addgroup --gid 1001 --system anima
-RUN adduser --uid 1001 --system --gid 1001 anima
-RUN chown -R anima:anima /app/data
-
-USER anima
-
+# Устанавливаем точку входа
 ENTRYPOINT ["dotnet", "Anima.AGI.dll"]

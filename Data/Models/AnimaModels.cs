@@ -3,6 +3,36 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace Anima.Data.Models
 {
+    public enum NotificationType
+    {
+        Info = 0,
+        Warning = 1,
+        Error = 2,
+        Success = 3,
+        Debug = 4,
+        EmotionChange = 5,
+        LearningUpdate = 6,
+        MemoryCreated = 7,
+        IntentDetected = 8,
+        SelfReflection = 9,
+        CreatorCommand = 10
+    }
+
+    // Enum для типов намерений
+    public enum IntentType
+    {
+        Unknown = 0,
+        Goal = 1,
+        Question = 2,
+        Reflect = 3,
+        Learn = 4,
+        Create = 5,
+        Analyze = 6,
+        Remember = 7,
+        Feel = 8,
+        Communicate = 9,
+        Help = 10
+    }
     // Модель API ключа для аутентификации
     public class APIKey
     {
@@ -302,19 +332,16 @@ namespace Anima.Data.Models
         public virtual ICollection<Thought> ChildThoughts { get; set; } = new List<Thought>();
     }
 
-    // Перечисления для типов уведомлений
-    public enum NotificationType
+    public class NotificationLog
     {
-        Info = 0,
-        Warning = 1,
-        Error = 2,
-        Success = 3,
-        Debug = 4,
-        Critical = 5,
-        Emotion = 6,
-        Learning = 7,
-        Memory = 8,
-        Consciousness = 9
+        public int Id { get; set; }
+        public NotificationType Type { get; set; }
+        public string Message { get; set; } = string.Empty;
+        public string? Details { get; set; }
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public bool IsSent { get; set; } = false;
+        public DateTime? SentAt { get; set; }
+        public string? Recipient { get; set; }
     }
 
     // Модель уведомлений
