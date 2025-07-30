@@ -211,7 +211,7 @@ open http://localhost:8080
 
 - GitHub Issues: [Сообщить о проблеме](https://github.com/Acloyer/Anima/issues)
 - Telegram: [@anima_agi_support](https://t.me/anima_agi_support)
-- Email: support@anima-agi.com
+- Email: huseynzaderafig@gmail.com
 
 ---
 
