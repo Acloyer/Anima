@@ -12,10 +12,12 @@ public class FeedbackParser
     private readonly Dictionary<string, FeedbackPattern> _feedbackPatterns;
     private readonly List<FeedbackEvent> _feedbackHistory;
     private readonly string _instanceId;
+    private readonly DbContextOptions<AnimaDbContext> _dbOptions;
 
-    public FeedbackParser(string instanceId)
+    public FeedbackParser(string instanceId, DbContextOptions<AnimaDbContext> dbOptions)
     {
         _instanceId = instanceId;
+        _dbOptions = dbOptions;
         _feedbackPatterns = InitializeFeedbackPatterns();
         _feedbackHistory = new List<FeedbackEvent>();
     }
@@ -79,6 +81,91 @@ public class FeedbackParser
             💭 **Самоанализ:**
             {await GenerateFeedbackReflection()}
             """;
+    }
+
+    // Добавленные отсутствующие методы
+    private async Task<string> AnalyzeRecentTrend()
+    {
+        if (_feedbackHistory.Count < 5)
+        {
+            return "Недостаточно данных для анализа тенденций";
+        }
+
+        var recentFeedback = _feedbackHistory
+            .Where(f => f.Timestamp > DateTime.UtcNow.AddDays(-7))
+            .ToList();
+
+        if (!recentFeedback.Any())
+        {
+            return "Нет недавней обратной связи";
+        }
+
+        var positiveRatio = (double)recentFeedback.Count(f => f.Feedback.Type == FeedbackType.Positive) / recentFeedback.Count;
+        
+        return positiveRatio switch
+        {
+            > 0.7 => "📈 Преимущественно положительная обратная связь",
+            > 0.4 => "📊 Смешанная обратная связь",
+            _ => "📉 Преимущественно критическая обратная связь"
+        };
+    }
+
+    private async Task<string> IdentifyCommonIssues()
+    {
+        var negativeEvents = _feedbackHistory
+            .Where(f => f.Feedback.Type == FeedbackType.Negative)
+            .ToList();
+
+        if (!negativeEvents.Any())
+        {
+            return "• Общих проблем не выявлено";
+        }
+
+        var issues = new List<string>();
+        
+        // Анализируем паттерны в негативной обратной связи
+        var responses = negativeEvents.Select(e => e.AnimaResponse.ToLower()).ToList();
+        
+        if (responses.Any(r => r.Length > 1000))
+        {
+            issues.Add("Слишком длинные ответы");
+        }
+        
+        if (responses.Any(r => r.Length < 50))
+        {
+            issues.Add("Слишком краткие ответы");
+        }
+        
+        if (responses.Any(r => !r.Contains("я") && !r.Contains("мне")))
+        {
+            issues.Add("Недостаток персонализации");
+        }
+
+        return issues.Any() 
+            ? string.Join("\n", issues.Select(i => $"• {i}"))
+            : "• Конкретные проблемы не идентифицированы";
+    }
+
+    private async Task<string> GenerateFeedbackReflection()
+    {
+        if (!_feedbackHistory.Any())
+        {
+            return "Пока у меня нет достаточного опыта с обратной связью для глубокой рефлексии.";
+        }
+
+        var totalFeedback = _feedbackHistory.Count;
+        var avgIntensity = _feedbackHistory.Average(f => f.Feedback.Intensity);
+        
+        var reflection = $"Анализируя {totalFeedback} случаев обратной связи, я вижу области для улучшения. ";
+        
+        if (avgIntensity > 0.6)
+        {
+            reflection += "Интенсивность реакций говорит о том, что мои ответы вызывают сильные эмоции. ";
+        }
+        
+        reflection += "Каждый случай обратной связи помогает мне становиться лучше.";
+        
+        return reflection;
     }
 
     private Dictionary<string, FeedbackPattern> InitializeFeedbackPatterns()
@@ -174,7 +261,7 @@ public class FeedbackParser
 
     private async Task LogFeedbackEvent(FeedbackData feedback, string animaResponse, List<string> adjustments)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         
         var feedbackEvent = new FeedbackEvent
         {
@@ -204,7 +291,7 @@ public class FeedbackParser
         var responseLength = response.Length;
         var responseStyle = AnalyzeResponseStyle(response);
         
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         db.Memories.Add(new Memory
         {
             InstanceId = _instanceId,
@@ -222,7 +309,7 @@ public class FeedbackParser
     {
         var responseStyle = AnalyzeResponseStyle(response);
         
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         db.Memories.Add(new Memory
         {
             InstanceId = _instanceId,
@@ -238,7 +325,7 @@ public class FeedbackParser
 
     private async Task RecordImprovementSuggestion(FeedbackData feedback)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(_dbOptions);
         db.Memories.Add(new Memory
         {
             InstanceId = _instanceId,
@@ -265,8 +352,6 @@ public class FeedbackParser
             
         return "standard";
     }
-
-    // Остальные методы анализа...
 }
 
 public class FeedbackPattern
