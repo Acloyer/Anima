@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Anima.Data.Models;
 
-namespace Anima.Data
+namespace Anima.Data.Models
 {
     public class AnimaDbContext : DbContext
     {

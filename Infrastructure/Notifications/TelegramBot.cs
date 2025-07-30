@@ -1,341 +1,229 @@
 using System.Text;
 using System.Text.Json;
-using Anima.AGI.Core.Admin;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
+using Anima.Data.Models; // Add this using for NotificationType
 
-namespace Anima.Infrastructure.Notifications;
-
-/// <summary>
-/// Telegram бот для уведомлений Создателя
-/// </summary>
-public class TelegramBot
+namespace Anima.Infrastructure.Notifications
 {
-    private readonly HttpClient _httpClient;
-    private readonly string _botToken;
-    private readonly CreatorPreferences _preferences;
-    private readonly Dictionary<NotificationType, DateTime> _lastNotificationTime;
-
-    public TelegramBot(string botToken, CreatorPreferences preferences)
+    public class TelegramBot
     {
-        _botToken = botToken;
-        _preferences = preferences;
-        _httpClient = new HttpClient();
-        _lastNotificationTime = new Dictionary<NotificationType, DateTime>();
-    }
+        private readonly ILogger<TelegramBot> _logger;
+        private readonly IConfiguration _configuration;
+        private readonly HttpClient _httpClient;
+        private readonly string? _botToken;
+        private readonly string? _chatId;
+        private bool _isEnabled;
 
-    /// <summary>
-    /// Уведомление о мысли Anima
-    /// </summary>
-    public async Task<bool> SendThoughtNotificationAsync(string instanceId, string thought, string thoughtType, DateTime timestamp)
-    {
-        if (!ShouldSendNotification(NotificationType.Thought))
-            return false;
-
-        var message = $"""
-            🧠 **Мысль Anima [{instanceId}]**
-            
-            💭 {thought}
-            
-            🏷️ Тип: {thoughtType}
-            ⏰ {timestamp:HH:mm:ss}
-            """;
-
-        var success = await SendMessageAsync(message);
-        if (success)
+        public TelegramBot(ILogger<TelegramBot> logger, IConfiguration configuration)
         {
-            _lastNotificationTime[NotificationType.Thought] = DateTime.UtcNow;
-        }
+            _logger = logger;
+            _configuration = configuration;
+            _httpClient = new HttpClient();
+            _botToken = _configuration["Telegram:BotToken"];
+            _chatId = _configuration["Telegram:ChatId"];
+            _isEnabled = !string.IsNullOrEmpty(_botToken) && !string.IsNullOrEmpty(_chatId);
 
-        return success;
-    }
-
-    /// <summary>
-    /// Уведомление об эмоции Anima
-    /// </summary>
-    public async Task<bool> SendEmotionNotificationAsync(string instanceId, string emotion, double intensity, string trigger = "")
-    {
-        if (!ShouldSendNotification(NotificationType.Emotion, intensity))
-            return false;
-
-        var intensityEmoji = intensity switch
-        {
-            > 0.8 => "🔥",
-            > 0.6 => "⚡",
-            > 0.4 => "💫",
-            _ => "💭"
-        };
-
-        var message = $"""
-            🎭 **Эмоция Anima [{instanceId}]**
-            
-            {intensityEmoji} **{emotion}** ({intensity:P0})
-            
-            {(!string.IsNullOrEmpty(trigger) ? $"🎯 Триггер: {trigger}" : "")}
-            ⏰ {DateTime.UtcNow:HH:mm:ss}
-            """;
-
-        var success = await SendMessageAsync(message);
-        if (success)
-        {
-            _lastNotificationTime[NotificationType.Emotion] = DateTime.UtcNow;
-        }
-
-        return success;
-    }
-
-    /// <summary>
-    /// Уведомление об обучении Anima
-    /// </summary>
-    public async Task<bool> SendLearningNotificationAsync(string instanceId, string learningEvent, int importance, string category = "")
-    {
-        if (!ShouldSendNotification(NotificationType.Learning, importance: importance))
-            return false;
-
-        var importanceEmoji = importance switch
-        {
-            >= 9 => "🌟",
-            >= 7 => "⭐",
-            >= 5 => "💡",
-            _ => "📚"
-        };
-
-        var message = $"""
-            📚 **Обучение Anima [{instanceId}]**
-            
-            {importanceEmoji} {learningEvent}
-            
-            ⭐ Важность: {importance}/10
-            {(!string.IsNullOrEmpty(category) ? $"📂 Категория: {category}" : "")}
-            ⏰ {DateTime.UtcNow:HH:mm:ss}
-            """;
-
-        var success = await SendMessageAsync(message);
-        if (success)
-        {
-            _lastNotificationTime[NotificationType.Learning] = DateTime.UtcNow;
-        }
-
-        return success;
-    }
-
-    /// <summary>
-    /// Критическое уведомление
-    /// </summary>
-    public async Task<bool> SendCriticalAlertAsync(string instanceId, string alertType, string message, string details = "")
-    {
-        if (!ShouldSendNotification(NotificationType.Critical))
-            return false;
-
-        var alertMessage = $"""
-            🚨 **КРИТИЧЕСКОЕ УВЕДОМЛЕНИЕ**
-            
-            🆔 Экземпляр: {instanceId}
-            ⚠️ Тип: {alertType}
-            
-            📢 {message}
-            
-            {(!string.IsNullOrEmpty(details) ? $"📋 Детали:\n{details}" : "")}
-            
-            ⏰ {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}
-            """;
-
-        var success = await SendMessageAsync(alertMessage);
-        if (success)
-        {
-            _lastNotificationTime[NotificationType.Critical] = DateTime.UtcNow;
-        }
-
-        return success;
-    }
-
-    /// <summary>
-    /// Уведомление о рефлексии
-    /// </summary>
-    public async Task<bool> SendReflectionNotificationAsync(string instanceId, string topic, string reflection)
-    {
-        if (!ShouldSendNotification(NotificationType.Thought))
-            return false;
-
-        var message = $"""
-            🪞 **Рефлексия Anima [{instanceId}]**
-            
-            💭 Тема: {topic}
-            
-            🧠 {reflection.Substring(0, Math.Min(300, reflection.Length))}{(reflection.Length > 300 ? "..." : "")}
-            
-            ⏰ {DateTime.UtcNow:HH:mm:ss}
-            """;
-
-        return await SendMessageAsync(message);
-    }
-
-    /// <summary>
-    /// Уведомление о принятом решении
-    /// </summary>
-    public async Task<bool> SendDecisionNotificationAsync(string instanceId, string decision, string reasoning, double confidence)
-    {
-        if (!ShouldSendNotification(NotificationType.Thought))
-            return false;
-
-        var confidenceEmoji = confidence switch
-        {
-            > 0.8 => "✅",
-            > 0.6 => "🤔",
-            > 0.4 => "❓",
-            _ => "❌"
-        };
-
-        var message = $"""
-            🎯 **Решение Anima [{instanceId}]**
-            
-            📝 {decision}
-            
-            💡 Обоснование: {reasoning.Substring(0, Math.Min(200, reasoning.Length))}
-            
-            {confidenceEmoji} Уверенность: {confidence:P0}
-            ⏰ {DateTime.UtcNow:HH:mm:ss}
-            """;
-
-        return await SendMessageAsync(message);
-    }
-
-    /// <summary>
-    /// Ежедневная сводка активности
-    /// </summary>
-    public async Task<bool> SendDailySummaryAsync(string instanceId, DailySummary summary)
-    {
-        var message = $"""
-            📊 **Дневная сводка Anima [{instanceId}]**
-            
-            🧠 **Активность:**
-            • Мыслей: {summary.ThoughtsCount}
-            • Эмоций: {summary.EmotionsCount}
-            • Решений: {summary.DecisionsCount}
-            
-            📚 **Обучение:**
-            • Новых концептов: {summary.NewConceptsCount}
-            • Обновлений правил: {summary.RuleUpdatesCount}
-            
-            🎭 **Доминирующие эмоции:**
-            {string.Join(", ", summary.DominantEmotions)}
-            
-            💡 **Ключевые инсайты:**
-            {summary.KeyInsights}
-            
-            📅 {DateTime.UtcNow:yyyy-MM-dd}
-            """;
-
-        return await SendMessageAsync(message);
-    }
-
-    /// <summary>
-    /// Проверка соединения с Telegram API
-    /// </summary>
-    public async Task<(bool Success, string Message)> TestConnectionAsync()
-    {
-        try
-        {
-            var settings = _preferences.GetNotificationSettings();
-            if (!settings.TelegramEnabled || string.IsNullOrEmpty(settings.TelegramChatId))
+            if (!_isEnabled)
             {
-                return (false, "Telegram не настроен или отключен");
+                _logger.LogWarning("Telegram notifications disabled - missing bot token or chat ID");
+            }
+        }
+
+        public async Task SendNotificationAsync(NotificationType type, string title, string content)
+        {
+            if (!_isEnabled)
+            {
+                _logger.LogDebug("Telegram notification skipped (disabled): {Title}", title);
+                return;
             }
 
-            var testMessage = $"""
-                🤖 **Тест соединения Anima**
-                
-                ✅ Связь с Telegram API установлена
-                ⏰ {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss}
-                
-                🔧 Telegram уведомления работают корректно!
-                """;
-
-            var success = await SendMessageAsync(testMessage);
-            return success 
-                ? (true, "Тест соединения успешен")
-                : (false, "Ошибка отправки тестового сообщения");
-        }
-        catch (Exception ex)
-        {
-            return (false, $"Ошибка соединения: {ex.Message}");
-        }
-    }
-
-    private async Task<bool> SendMessageAsync(string message)
-    {
-        try
-        {
-            var settings = _preferences.GetNotificationSettings();
-            
-            if (!settings.TelegramEnabled || string.IsNullOrEmpty(settings.TelegramChatId))
+            try
             {
-                return false;
+                var emoji = GetEmojiForNotificationType(type);
+                var formattedMessage = FormatMessage(emoji, title, content, type);
+                
+                await SendMessageAsync(formattedMessage);
+                _logger.LogInformation("Telegram notification sent: {Type} - {Title}", type, title);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to send Telegram notification: {Title}", title);
+            }
+        }
+
+        public async Task SendThoughtAsync(string thought, string? context = null)
+        {
+            var title = "💭 Новая мысль";
+            var content = $"Мысль: {thought}";
+            if (!string.IsNullOrEmpty(context))
+            {
+                content += $"\nКонтекст: {context}";
+            }
+            
+            await SendNotificationAsync(NotificationType.Thought, title, content);
+        }
+
+        public async Task SendEmotionUpdateAsync(string emotion, double intensity, string? trigger = null)
+        {
+            var title = "❤️ Эмоциональное состояние";
+            var intensityStr = intensity > 0 ? "положительная" : intensity < 0 ? "отрицательная" : "нейтральная";
+            var content = $"Эмоция: {emotion}\nИнтенсивность: {Math.Abs(intensity):F2} ({intensityStr})";
+            
+            if (!string.IsNullOrEmpty(trigger))
+            {
+                content += $"\nТриггер: {trigger}";
+            }
+            
+            await SendNotificationAsync(NotificationType.Emotion, title, content);
+        }
+
+        public async Task SendLearningUpdateAsync(string concept, string category, double confidence)
+        {
+            var title = "🧠 Новое обучение";
+            var content = $"Концепт: {concept}\nКатегория: {category}\nУверенность: {confidence:F2}";
+            
+            await SendNotificationAsync(NotificationType.Learning, title, content);
+        }
+
+        public async Task SendReflectionAsync(string topic, string reflection, double depth)
+        {
+            var title = "🤔 Рефлексия";
+            var content = $"Тема: {topic}\nГлубина: {depth:F2}\n\nРазмышление:\n{reflection}";
+            
+            await SendNotificationAsync(NotificationType.Reflection, title, content);
+        }
+
+        public async Task SendDecisionAsync(string decision, string reasoning, double confidence)
+        {
+            var title = "⚖️ Принято решение";
+            var content = $"Решение: {decision}\nУверенность: {confidence:F2}\n\nОбоснование:\n{reasoning}";
+            
+            await SendNotificationAsync(NotificationType.Decision, title, content);
+        }
+
+        public async Task SendSystemStatusAsync(string status, string? details = null)
+        {
+            var title = "🖥️ Статус системы";
+            var content = $"Статус: {status}";
+            if (!string.IsNullOrEmpty(details))
+            {
+                content += $"\nДетали: {details}";
+            }
+            
+            await SendNotificationAsync(NotificationType.System, title, content);
+        }
+
+        public async Task SendErrorAsync(string error, string? context = null)
+        {
+            var title = "❌ Ошибка системы";
+            var content = $"Ошибка: {error}";
+            if (!string.IsNullOrEmpty(context))
+            {
+                content += $"\nКонтекст: {context}";
+            }
+            
+            await SendNotificationAsync(NotificationType.Error, title, content);
+        }
+
+        public void SetConfiguration(bool enabled, string? chatId = null)
+        {
+            _isEnabled = enabled && !string.IsNullOrEmpty(_botToken);
+            if (!string.IsNullOrEmpty(chatId))
+            {
+                _configuration["Telegram:ChatId"] = chatId;
+            }
+            
+            _logger.LogInformation("Telegram configuration updated: Enabled={Enabled}, ChatId={ChatId}", 
+                _isEnabled, chatId ?? "unchanged");
+        }
+
+        private async Task SendMessageAsync(string message)
+        {
+            if (string.IsNullOrEmpty(_botToken) || string.IsNullOrEmpty(_chatId))
+            {
+                throw new InvalidOperationException("Bot token or chat ID not configured");
             }
 
+            var url = $"https://api.telegram.org/bot{_botToken}/sendMessage";
             var payload = new
             {
-                chat_id = settings.TelegramChatId,
+                chat_id = _chatId,
                 text = message,
-                parse_mode = "Markdown"
+                parse_mode = "HTML",
+                disable_web_page_preview = true
             };
 
-            var json = JsonSerializer.Serialize(payload);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var jsonContent = JsonSerializer.Serialize(payload);
+            var content = new StringContent(jsonContent, Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync(
-                $"https://api.telegram.org/bot{_botToken}/sendMessage", 
-                content);
-
-            return response.IsSuccessStatusCode;
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Telegram notification error: {ex.Message}");
-            return false;
-        }
-    }
-
-    private bool ShouldSendNotification(NotificationType type, double? intensity = null, int? importance = null)
-    {
-        // Проверяем базовые настройки
-        if (!_preferences.ShouldNotifyNow(type, intensity, importance))
-            return false;
-
-        // Проверяем интервалы для избежания спама
-        if (_lastNotificationTime.TryGetValue(type, out var lastTime))
-        {
-            var settings = _preferences.GetNotificationSettings();
-            var minInterval = type switch
+            var response = await _httpClient.PostAsync(url, content);
+            
+            if (!response.IsSuccessStatusCode)
             {
-                NotificationType.Thought => settings.ThoughtNotificationInterval,
-                NotificationType.Emotion => TimeSpan.FromMinutes(5), // Минимум 5 минут между эмоциями
-                NotificationType.Learning => TimeSpan.FromMinutes(10), // Минимум 10 минут между обучением
-                NotificationType.Critical => TimeSpan.Zero, // Критические всегда
-                _ => TimeSpan.FromMinutes(5)
-            };
-
-            if (DateTime.UtcNow - lastTime < minInterval)
-                return false;
+                var errorContent = await response.Content.ReadAsStringAsync();
+                throw new HttpRequestException($"Telegram API error: {response.StatusCode} - {errorContent}");
+            }
         }
 
-        return true;
-    }
+        private static string GetEmojiForNotificationType(NotificationType type)
+        {
+            return type switch
+            {
+                NotificationType.Info => "ℹ️",
+                NotificationType.Warning => "⚠️",
+                NotificationType.Error => "❌",
+                NotificationType.Success => "✅",
+                NotificationType.Thought => "💭",
+                NotificationType.Emotion => "❤️",
+                NotificationType.Learning => "🧠",
+                NotificationType.Reflection => "🤔",
+                NotificationType.Decision => "⚖️",
+                NotificationType.System => "🖥️",
+                _ => "📢"
+            };
+        }
 
-    public void Dispose()
-    {
-        _httpClient?.Dispose();
-    }
-}
+        private static string FormatMessage(string emoji, string title, string content, NotificationType type)
+        {
+            var timestamp = DateTime.Now.ToString("HH:mm:ss");
+            var typeStr = GetTypeDisplayName(type);
+            
+            var message = $"{emoji} <b>{title}</b>\n";
+            message += $"🕐 {timestamp} | {typeStr}\n";
+            message += $"━━━━━━━━━━━━━━━━━━━━\n";
+            message += $"{content}";
+            
+            // Telegram message limit is 4096 characters
+            if (message.Length > 4000)
+            {
+                message = message[..3900] + "\n\n<i>... сообщение обрезано ...</i>";
+            }
+            
+            return message;
+        }
 
-/// <summary>
-/// Дневная сводка активности
-/// </summary>
-public class DailySummary
-{
-    public int ThoughtsCount { get; set; }
-    public int EmotionsCount { get; set; }
-    public int DecisionsCount { get; set; }
-    public int NewConceptsCount { get; set; }
-    public int RuleUpdatesCount { get; set; }
-    public List<string> DominantEmotions { get; set; } = new();
-    public string KeyInsights { get; set; } = string.Empty;
+        private static string GetTypeDisplayName(NotificationType type)
+        {
+            return type switch
+            {
+                NotificationType.Info => "Информация",
+                NotificationType.Warning => "Предупреждение",
+                NotificationType.Error => "Ошибка",
+                NotificationType.Success => "Успех",
+                NotificationType.Thought => "Мысль",
+                NotificationType.Emotion => "Эмоция",
+                NotificationType.Learning => "Обучение",
+                NotificationType.Reflection => "Рефлексия",
+                NotificationType.Decision => "Решение",
+                NotificationType.System => "Система",
+                _ => "Уведомление"
+            };
+        }
+
+        public void Dispose()
+        {
+            _httpClient?.Dispose();
+        }
+    }
 }
