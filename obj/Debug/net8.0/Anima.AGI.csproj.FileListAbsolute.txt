@@ -1,8 +1,0 @@
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.csproj.AssemblyReference.cache
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\rpswa.dswa.cache.json
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.AssemblyInfoInputs.cache
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.AssemblyInfo.cs
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.csproj.CoreCompileInputs.cache
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.MvcApplicationPartsAssemblyInfo.cs
-C:\Users\ASUS\OneDrive\Desktop\Anima\obj\Debug\net8.0\Anima.AGI.MvcApplicationPartsAssemblyInfo.cache
