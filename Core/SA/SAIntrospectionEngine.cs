@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using System.Linq;
 
-namespace Anima.AGI.Core.SA;
+namespace Anima.Core.SA;
 
 /// <summary>
 /// Движок самоанализа и интроспекции для SA-TM архитектуры
@@ -17,10 +17,16 @@ public class SAIntrospectionEngine
 
     public SAIntrospectionEngine(ILogger<SAIntrospectionEngine>? logger = null)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _sessions = new List<IntrospectionSession>();
         _selfModel = new Dictionary<string, object>();
         InitializeSelfModel();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Инициализация движка самоанализа
+        await Task.CompletedTask;
     }
 
     /// <summary>

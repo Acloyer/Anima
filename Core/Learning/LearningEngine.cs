@@ -3,7 +3,7 @@ using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
 
-namespace Anima.AGI.Core.Learning;
+namespace Anima.Core.Learning;
 
 /// <summary>
 /// Движок обучения и адаптации Anima
@@ -26,6 +26,12 @@ public class LearningEngine
         _conceptConfidence = new Dictionary<string, double>();
         
         InitializeBaseConcepts();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Инициализация движка обучения
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -764,14 +770,14 @@ public class LearningEngine
         
         var learningEvent = $"LEARNING_EVENT: Изучила {concepts.Count} концептов и {rules.Count} правил из взаимодействия";
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
-            InstanceId = _instanceId,
+            MemoryType = "learning_event",
             Content = learningEvent,
-            Category = "learning",
             Importance = 7 + Math.Min(3, concepts.Count + rules.Count),
-            Timestamp = DateTime.UtcNow,
-            Tags = $"learning,adaptation,concepts_{concepts.Count},rules_{rules.Count}"
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = _instanceId,
+            Category = "learning"
         });
         
         await db.SaveChangesAsync();

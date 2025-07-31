@@ -3,7 +3,7 @@ using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using System.Text.Json;
 
-namespace Anima.AGI.Core.SA;
+namespace Anima.Core.SA;
 
 /// <summary>
 /// Движок саморефлексии - объяснение своих решений и мыслительных процессов
@@ -607,14 +607,14 @@ public class SelfReflectionEngine
     {
         using var db = new AnimaDbContext(_dbOptions);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "self_reflection",
+            Content = $"SELF_REFLECTION: {reflection}",
+            Importance = 8.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"REFLECTION: {topic} - {reflection}",
-            Category = "self_reflection",
-            Importance = 6,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"reflection,topic_{topic.ToLower().Replace(" ", "_")},introspection"
+            Category = "reflection"
         });
         
         await db.SaveChangesAsync();
@@ -624,14 +624,14 @@ public class SelfReflectionEngine
     {
         using var db = new AnimaDbContext(_dbOptions);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "decision_reflection",
+            Content = $"DECISION_REFLECTION: {decision}",
+            Importance = 8.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"DECISION: {decision.Decision} (Context: {decision.Context})",
-            Category = "decisions",
-            Importance = 7,
-            Timestamp = decision.Timestamp,
-            Tags = $"decision,confidence_{decision.Confidence:F1},factors_{decision.InfluencingFactors.Count}"
+            Category = "reflection"
         });
         
         await db.SaveChangesAsync();

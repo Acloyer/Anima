@@ -2,7 +2,7 @@ using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Anima.AGI.Core.Admin;
+namespace Anima.Core.Admin;
 
 /// <summary>
 /// Система настроек и уведомлений для Создателя
@@ -20,6 +20,12 @@ public class CreatorPreferences
         _notifications = InitializeNotifications();
         _settings = InitializeSettings();
         _subscriptions = new List<string>();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Инициализация настроек создателя
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -120,13 +126,14 @@ public class CreatorPreferences
 
         // Сохраняем экспорт в память для возможного восстановления
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "creator_preference",
             Content = $"SETTINGS_EXPORT: {json}",
-            Category = "settings_backup",
-            Importance = 8,
-            Timestamp = DateTime.UtcNow,
-            Tags = "export,settings,backup"
+            Importance = 8.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = "settings_backup",
+            Category = "settings_backup"
         });
         await db.SaveChangesAsync();
 
@@ -395,13 +402,14 @@ public class CreatorPreferences
     private async Task SaveNotification(CreatorNotification notification)
     {
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "creator_notification",
             Content = notification.Message,
-            Category = "creator_notification",
             Importance = (int)notification.Priority + 5,
-            Timestamp = notification.Timestamp,
-            Tags = $"notification,{notification.Type},priority_{notification.Priority.ToString().ToLower()}"
+            CreatedAt = notification.Timestamp,
+            InstanceId = $"notification_{notification.Type}_{notification.Priority}",
+            Category = "creator_notification"
         });
         
         await db.SaveChangesAsync();
@@ -417,13 +425,14 @@ public class CreatorPreferences
     private async Task LogPreferenceChange(string change)
     {
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "creator_preference",
             Content = $"PREFERENCE_CHANGE: {change}",
-            Category = "preference_changes",
-            Importance = 6,
-            Timestamp = DateTime.UtcNow,
-            Tags = "preferences,creator,settings"
+            Importance = 6.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = "preference_changes",
+            Category = "preference_changes"
         });
         
         await db.SaveChangesAsync();

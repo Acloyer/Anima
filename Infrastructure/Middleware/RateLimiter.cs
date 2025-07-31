@@ -141,10 +141,10 @@ public class RateLimiterMiddleware
 
     private void AddRateLimitHeaders(HttpResponse response, RequestInfo requestInfo, int limit, TimeSpan window)
     {
-        response.Headers.Add("X-RateLimit-Limit", limit.ToString());
-        response.Headers.Add("X-RateLimit-Remaining", Math.Max(0, limit - requestInfo.RequestCount).ToString());
-        response.Headers.Add("X-RateLimit-Reset", ((DateTimeOffset)requestInfo.FirstRequest.Add(window)).ToUnixTimeSeconds().ToString());
-        response.Headers.Add("X-RateLimit-Window", ((int)window.TotalSeconds).ToString());
+        response.Headers.Append("X-RateLimit-Limit", limit.ToString());
+        response.Headers.Append("X-RateLimit-Remaining", Math.Max(0, limit - requestInfo.RequestCount).ToString());
+        response.Headers.Append("X-RateLimit-Reset", ((DateTimeOffset)requestInfo.FirstRequest.Add(window)).ToUnixTimeSeconds().ToString());
+        response.Headers.Append("X-RateLimit-Window", ((int)window.TotalSeconds).ToString());
     }
 
     private async Task HandleRateLimitExceeded(HttpContext context, int limit, TimeSpan window, RequestInfo requestInfo)
@@ -154,7 +154,7 @@ public class RateLimiterMiddleware
 
         context.Response.StatusCode = 429; // Too Many Requests
         context.Response.ContentType = "application/json";
-        context.Response.Headers.Add("Retry-After", retryAfter.ToString());
+        context.Response.Headers.Append("Retry-After", retryAfter.ToString());
         
         AddRateLimitHeaders(context.Response, requestInfo, limit, window);
 

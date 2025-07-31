@@ -1,7 +1,8 @@
 using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
-using DbContext = Anima.Data.Models.AnimaDbContext;
+// using DbContext = Anima.Data.Models.AnimaDbContext;
+using DbContext = Anima.Data.AnimaDbContext;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -88,13 +89,14 @@ public class APIKeyService
         var apiKey = GenerateAPIKey();
         var keyHash = HashAPIKey(apiKey);
 
-        using var db = new DbContext(new DbContextOptionsBuilder<DbContext>()
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
             .UseSqlite("Data Source=anima.db")
-            .Options);
+            .Options;
+        using var db = new AnimaDbContext(options);
         
+        // Исправляем проблему с типами данных
         var apiKeyRecord = new APIKey
         {
-            Id = Guid.NewGuid(),
             Name = name,
             KeyHash = keyHash,
             Role = role,
@@ -117,9 +119,12 @@ public class APIKeyService
     /// <summary>
     /// Отзыв API ключа
     /// </summary>
-    public async Task<bool> RevokeAPIKeyAsync(Guid keyId, string revokedBy)
+    public async Task<bool> RevokeAPIKeyAsync(int keyId, string revokedBy)
     {
-        using var db = new DbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         var apiKey = await db.APIKeys.FindAsync(keyId);
         if (apiKey == null) return false;
@@ -144,7 +149,10 @@ public class APIKeyService
             throw new UnauthorizedAccessException("Only Creator can view API keys");
         }
 
-        using var db = new DbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         var keys = await db.APIKeys
             .Select(k => new APIKeyInfo
@@ -285,7 +293,10 @@ public class APIKeyService
             return "❌ Только Создатель может просматривать статистику API.";
         }
 
-        using var db = new DbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         var totalKeys = await db.APIKeys.CountAsync();
         var activeKeys = await db.APIKeys.CountAsync(k => !k.IsRevoked);
@@ -382,18 +393,22 @@ public class APIKeyService
 
     private async Task LogAuthAttempt(string apiKey, bool success, string details)
     {
-        using var db = new DbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         // Логируем только первые 8 символов ключа для безопасности
         var keyPrefix = apiKey.Length > 8 ? apiKey.Substring(0, 8) + "..." : "short_key";
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "security_audit",
             Content = $"AUTH_ATTEMPT: {keyPrefix} - {(success ? "SUCCESS" : "FAILED")} - {details}",
-            Category = "auth_log",
             Importance = success ? 4 : 7,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"auth,{(success ? "success" : "failure")},{keyPrefix}"
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = Guid.NewGuid().ToString(), // Assuming instanceId is needed for MemoryEntity
+            Category = "security"
         });
         
         await db.SaveChangesAsync();
@@ -401,15 +416,19 @@ public class APIKeyService
 
     private async Task LogAPIKeyAction(string action, string performedBy)
     {
-        using var db = new DbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "security_audit",
             Content = $"API_KEY_ACTION: {action}",
-            Category = "api_management",
             Importance = 8,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"api_key,management,{performedBy}"
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = Guid.NewGuid().ToString(), // Assuming instanceId is needed for MemoryEntity
+            Category = "security"
         });
         
         await db.SaveChangesAsync();
@@ -440,7 +459,7 @@ public class AuthResult
     public string UserName { get; set; } = string.Empty;
     public List<string> Permissions { get; set; } = new();
     public string ErrorMessage { get; set; } = string.Empty;
-    public Guid? APIKeyId { get; set; }
+    public int? APIKeyId { get; set; }
     public string? SessionId { get; set; }
 }
 
@@ -468,7 +487,7 @@ public class CurrentUser
 /// </summary>
 public class APIKeyInfo
 {
-    public Guid Id { get; set; }
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;

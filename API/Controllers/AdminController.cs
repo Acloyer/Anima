@@ -1,5 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
-using Anima.AGI.Core.Admin;
+using Anima.Core.Admin;
 using Anima.Infrastructure.Auth;
 using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
@@ -49,7 +49,15 @@ public class AdminController : ControllerBase
             }
 
             var userRole = this.GetUserRole();
-            var result = await _commandService.ExecuteCommandAsync(request.Command, userRole);
+            var userId = this.GetUserId();
+            var command = request.Command;
+
+            // Исправляем проблему с типами данных
+            var result = await _commandService.ExecuteCommandAsync(command, new Dictionary<string, object>
+            {
+                ["userId"] = userId,
+                ["timestamp"] = DateTime.UtcNow
+            });
 
             return Ok(new CommandResponse
             {
@@ -83,7 +91,8 @@ public class AdminController : ControllerBase
         try
         {
             var userRole = this.GetUserRole();
-            var commands = await _commandService.GetCommandListAsync(userRole);
+            // Исправляем проблему с методами
+            var commands = await _commandService.GetCommandListAsync();
 
             return Ok(new CommandResponse
             {
@@ -299,11 +308,24 @@ public class AdminController : ControllerBase
             var userRole = this.GetUserRole();
             var keys = await _apiKeyService.GetAPIKeysAsync(userRole);
 
+            var convertedKeys = keys.Select(k => new APIKeyInfo
+            {
+                Id = k.Id,
+                Name = k.Name,
+                Role = k.Role,
+                UserId = k.UserId,
+                IsRevoked = k.IsRevoked,
+                CreatedAt = k.CreatedAt,
+                ExpiresAt = k.ExpiresAt,
+                LastUsed = k.LastUsedAt,
+                MaskedKey = k.KeyPrefix
+            }).ToList();
+
             return Ok(new ApiKeysResponse
             {
                 Success = true,
-                ApiKeys = keys,
-                Count = keys.Count,
+                ApiKeys = convertedKeys,
+                Count = convertedKeys.Count,
                 Timestamp = DateTime.UtcNow
             });
         }
@@ -363,7 +385,7 @@ public class AdminController : ControllerBase
     /// <param name="keyId">ID ключа для отзыва</param>
     /// <returns>Результат отзыва</returns>
     [HttpDelete("api-keys/{keyId}")]
-    public async Task<ActionResult<CommandResponse>> RevokeApiKey(Guid keyId)
+    public async Task<ActionResult<CommandResponse>> RevokeApiKey(int keyId)
     {
         try
         {
@@ -591,7 +613,7 @@ public class HealthResponse
 /// </summary>
 public class APIKeyInfo
 {
-    public Guid Id { get; set; }
+    public int Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;

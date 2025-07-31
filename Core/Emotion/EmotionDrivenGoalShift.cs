@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Anima.AGI.Core.Emotion;
+namespace Anima.Core.Emotion;
 
 /// <summary>
 /// Система управления эмоциями и их влиянием на цели
@@ -18,7 +18,7 @@ public class EmotionDrivenGoalShift
 
     public EmotionDrivenGoalShift(ILogger<EmotionDrivenGoalShift>? logger = null)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _currentEmotions = new Dictionary<string, double>();
         _emotionHistory = new List<EmotionState>();
         InitializeDefaultEmotions();

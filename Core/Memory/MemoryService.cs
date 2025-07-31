@@ -1,11 +1,12 @@
 using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
-using MemoryModel = Anima.Data.Models.Memory;
-using Anima.AGI.Core.Intent;
-using DbContext = Anima.Data.Models.AnimaDbContext;
+using MemoryModel = Anima.Data.Models.MemoryEntity;
+using Anima.Core.Intent;
+// using DbContext = Anima.Data.Models.AnimaDbContext;
+using DbContext = Anima.Data.AnimaDbContext;
 
-namespace Anima.AGI.Core.Memory;
+namespace Anima.Core.Memory;
 
 public class MemoryService
 {
@@ -14,6 +15,12 @@ public class MemoryService
     public MemoryService(DbContext db)
     {
         _db = db;
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Инициализация сервиса памяти
+        await Task.CompletedTask;
     }
 
     public async Task<List<MemoryModel>> GetRecentMemoriesAsync(int count = 10)

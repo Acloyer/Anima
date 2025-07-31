@@ -1,9 +1,10 @@
 using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
-using DbContext = Anima.Data.Models.AnimaDbContext;
+// using DbContext = Anima.Data.Models.AnimaDbContext;
+using DbContext = Anima.Data.AnimaDbContext;
 
-namespace Anima.AGI.Core.Emotion;
+namespace Anima.Core.Emotion;
 
 public class EmotionStateHistory
 {

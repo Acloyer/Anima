@@ -2,7 +2,7 @@ using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Anima.AGI.Core.Security;
+namespace Anima.Core.Security;
 
 /// <summary>
 /// Проверка безопасности модификаций перед их применением
@@ -113,18 +113,22 @@ public class SelfDestructionCheck
     {
         var restorePointId = Guid.NewGuid().ToString("N")[..8];
         
-        using var db = new AnimaDbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         // Сохраняем состояние компонента
         var backupData = await BackupComponentState(component);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "system_backup",
             Content = $"RESTORE_POINT_{restorePointId}: {component} backup - {reason}",
-            Category = "system_backup",
-            Importance = 9,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"backup,restore_point,{component},safety,{restorePointId}"
+            Importance = 9.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = Guid.NewGuid().ToString("N"),
+            Category = "system_backup"
         });
 
         await db.SaveChangesAsync();
@@ -142,7 +146,10 @@ public class SelfDestructionCheck
             return "❌ Только Создатель может выполнять восстановление из точек сохранения.";
         }
 
-        using var db = new AnimaDbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
         
         var restorePoint = await db.Memories
             .Where(m => m.Tags != null && m.Tags.Contains(restorePointId))
@@ -155,13 +162,14 @@ public class SelfDestructionCheck
         }
 
         // Логируем восстановление
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "system_restore",
             Content = $"SYSTEM_RESTORE: Restored from point {restorePointId}",
-            Category = "system_restore",
-            Importance = 10,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"restore,{restorePointId},emergency,creator_action"
+            Importance = 10.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = Guid.NewGuid().ToString("N"),
+            Category = "system_restore"
         });
 
         await db.SaveChangesAsync();
@@ -170,11 +178,11 @@ public class SelfDestructionCheck
             ✅ **Восстановление завершено**
             
             🔄 **Точка восстановления:** {restorePointId}
-            📅 **Дата создания:** {restorePoint.Timestamp:yyyy-MM-dd HH:mm:ss}
+            📅 **Дата создания:** {restorePoint.CreatedAt:yyyy-MM-dd HH:mm:ss}
             📝 **Описание:** {restorePoint.Content}
             
             ⚠️ **Внимание:**
-            Все изменения после {restorePoint.Timestamp:HH:mm:ss} могут быть потеряны.
+            Все изменения после {restorePoint.CreatedAt:HH:mm:ss} могут быть потеряны.
             """;
     }
 
@@ -562,17 +570,21 @@ public class SelfDestructionCheck
 
     private async Task LogSafetyCheck(ModificationSafetyCheck safetyCheck)
     {
-        using var db = new AnimaDbContext();
+        var options = new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options;
+        using var db = new AnimaDbContext(options);
 
         var logContent = $"SAFETY_CHECK: {safetyCheck.Component} - {safetyCheck.ModificationType} - {(safetyCheck.IsAllowed ? "ALLOWED" : "DENIED")}";
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "safety_check",
             Content = logContent,
-            Category = "safety_check",
             Importance = safetyCheck.IsAllowed ? 6 : 8,
-            Timestamp = safetyCheck.Timestamp,
-            Tags = $"safety,{safetyCheck.Component},{safetyCheck.ModificationType},{safetyCheck.RiskLevel.ToString().ToLower()}"
+            CreatedAt = safetyCheck.Timestamp,
+            InstanceId = Guid.NewGuid().ToString("N"),
+            Category = "safety_check"
         });
 
         await db.SaveChangesAsync();

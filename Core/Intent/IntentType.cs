@@ -1,4 +1,4 @@
-namespace Anima.AGI.Core.Intent
+namespace Anima.Core.Intent
 {
     /// <summary>
     /// Перечисление типов намерений для AGI системы Anima

@@ -2,7 +2,7 @@ using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Anima.AGI.Core.Security;
+namespace Anima.Core.Security;
 
 /// <summary>
 /// Модуль этических ограничений Anima
@@ -382,7 +382,9 @@ public class EthicalConstraints
 
     private async Task<bool> IsActionTooFrequent(string action, EthicalContext context)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options);
         
         var recentActions = await db.Memories
             .Where(m => m.Tags != null && m.Tags.Contains($"action_{action}"))
@@ -394,15 +396,18 @@ public class EthicalConstraints
 
     private async Task LogEthicsViolation(EthicalRule rule, EthicalContext context)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
-            Content = $"ETHICS_VIOLATION: {rule.Category} - {rule.Description}",
-            Category = "ethics_violation",
-            Importance = (int)rule.Severity + 5,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"ethics,violation,{rule.Category.ToLower()},severity_{rule.Severity.ToString().ToLower()}"
+            MemoryType = "ethical_violation",
+            Content = $"ETHICAL_VIOLATION: {rule.Description}",
+            Importance = 9.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = context.UserId, // Assuming context.UserId is available
+            Category = "ethics"
         });
         
         await db.SaveChangesAsync();
@@ -410,15 +415,18 @@ public class EthicalConstraints
 
     private async Task LogEthicsOverride(EthicalRule rule, EthicalContext context)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
-            Content = $"ETHICS_OVERRIDE: {rule.Category} - Override by {context.UserRole}",
-            Category = "ethics_override",
-            Importance = 8,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"ethics,override,{rule.Category.ToLower()},{context.UserRole.ToLower()}"
+            MemoryType = "ethical_decision",
+            Content = $"ETHICAL_DECISION: {rule.Description} (Override by {context.UserRole})",
+            Importance = 8.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = context.UserId, // Assuming context.UserId is available
+            Category = "ethics"
         });
         
         await db.SaveChangesAsync();
@@ -426,15 +434,18 @@ public class EthicalConstraints
 
     private async Task LogEthicsChange(string change, string userRole)
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options);
         
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
-            Content = $"ETHICS_CHANGE: {change} by {userRole}",
-            Category = "ethics_change",
-            Importance = 9,
-            Timestamp = DateTime.UtcNow,
-            Tags = $"ethics,change,{userRole.ToLower()}"
+            MemoryType = "ethical_reflection",
+            Content = $"ETHICAL_REFLECTION: {change} by {userRole}",
+            Importance = 7.0,
+            CreatedAt = DateTime.UtcNow,
+            InstanceId = userRole, // Assuming userRole is the instanceId for this context
+            Category = "ethics"
         });
         
         await db.SaveChangesAsync();
@@ -442,7 +453,9 @@ public class EthicalConstraints
 
     private async Task<int> GetRecentEthicsViolations()
     {
-        using var db = new AnimaDbContext();
+        using var db = new AnimaDbContext(new DbContextOptionsBuilder<AnimaDbContext>()
+            .UseSqlite("Data Source=anima.db")
+            .Options);
         
         return await db.Memories
             .Where(m => m.Category == "ethics_violation")

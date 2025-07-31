@@ -1,15 +1,15 @@
-using Anima.AGI.Core.SA;
-using Anima.AGI.Core.Emotion;
-using Anima.AGI.Core.Learning;
-using Anima.AGI.Core.Admin;
-using Anima.AGI.Core.Memory;
-using Anima.AGI.Core.Intent;
-using Anima.AGI.Core;
+using Anima.Core.SA;
+using Anima.Core.Emotion;
+using Anima.Core.Learning;
+using Anima.Core.Admin;
+using Anima.Core.Memory;
+using Anima.Core.Intent;
+using Anima.Core;
 using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.Extensions.Logging;
 
-namespace Anima.AGI.Core.AGI;
+namespace Anima.Core.AGI;
 
 /// <summary>
 /// Главный экземпляр Anima AGI — управляет сознанием, памятью, эмоциями, обучением и самоанализом.
@@ -47,6 +47,25 @@ public class AnimaInstance
         ConsciousLoop = consciousLoop;
         IntentParser = intentParser;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Инициализирует AGI — подготавливает все компоненты к работе.
+    /// </summary>
+    public async Task InitializeAsync()
+    {
+        _logger.LogInformation("🧠 Инициализация Anima AGI...");
+        
+        // Инициализация компонентов
+        await MemoryService.InitializeAsync();
+        await EmotionEngine.InitializeAsync();
+        await Introspection.InitializeAsync();
+        await ThoughtLog.InitializeAsync();
+        await LearningEngine.InitializeAsync();
+        await CreatorPreferences.InitializeAsync();
+        await IntentParser.InitializeAsync();
+        
+        _logger.LogInformation("✅ Anima AGI инициализирована успешно.");
     }
 
     /// <summary>

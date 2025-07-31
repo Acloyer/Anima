@@ -4,7 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
-namespace Anima.AGI.Core.SA;
+namespace Anima.Core.SA;
 
 /// <summary>
 /// Журнал мыслей и размышлений Anima
@@ -19,6 +19,12 @@ public class ThoughtLog
     {
         _logger = logger;
         _thoughts = new List<Thought>();
+    }
+
+    public async Task InitializeAsync()
+    {
+        // Инициализация журнала мыслей
+        await Task.CompletedTask;
     }
 
     /// <summary>
@@ -72,7 +78,7 @@ public class ThoughtLog
     /// <summary>
     /// Логирование эмоции
     /// </summary>
-    public void LogEmotion(string emotion, double intensity, string trigger = null)
+    public void LogEmotion(string emotion, double intensity, string? trigger = null)
     {
         var thought = new Thought
         {

@@ -2,7 +2,7 @@ using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace Anima.AGI.Core.Learning;
+namespace Anima.Core.Learning;
 
 /// <summary>
 /// Анализ обратной связи для улучшения поведения
@@ -273,14 +273,14 @@ public class FeedbackParser
         
         _feedbackHistory.Add(feedbackEvent);
 
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "learning_feedback",
+            Content = $"LEARNING_FEEDBACK: {feedback}",
+            Importance = 6.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"FEEDBACK: {feedback.Type} обратная связь с интенсивностью {feedback.Intensity:P0}",
-            Category = "feedback",
-            Importance = (int)(5 + feedback.Intensity * 3),
-            Timestamp = DateTime.UtcNow,
-            Tags = $"feedback,{feedback.Type.ToString().ToLower()},intensity_{feedback.Intensity:F1}"
+            Category = "learning"
         });
         
         await db.SaveChangesAsync();
@@ -292,14 +292,14 @@ public class FeedbackParser
         var responseStyle = AnalyzeResponseStyle(response);
         
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "learning_feedback",
+            Content = $"LEARNING_FEEDBACK: {response}",
+            Importance = 6.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"SUCCESSFUL_PATTERN: {responseStyle} style, length: {responseLength}",
-            Category = "successful_patterns",
-            Importance = 8,
-            Timestamp = DateTime.UtcNow,
-            Tags = "learning,success,pattern,reinforcement"
+            Category = "learning"
         });
         
         await db.SaveChangesAsync();
@@ -310,14 +310,14 @@ public class FeedbackParser
         var responseStyle = AnalyzeResponseStyle(response);
         
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "learning_feedback",
+            Content = $"LEARNING_FEEDBACK: {response}",
+            Importance = 6.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"PROBLEMATIC_PATTERN: {responseStyle} style received negative feedback",
-            Category = "problematic_patterns",
-            Importance = 8,
-            Timestamp = DateTime.UtcNow,
-            Tags = "learning,problem,pattern,avoidance"
+            Category = "learning"
         });
         
         await db.SaveChangesAsync();
@@ -326,14 +326,14 @@ public class FeedbackParser
     private async Task RecordImprovementSuggestion(FeedbackData feedback)
     {
         using var db = new AnimaDbContext(_dbOptions);
-        db.Memories.Add(new Memory
+        db.Memories.Add(new MemoryEntity
         {
+            MemoryType = "learning_feedback",
+            Content = $"LEARNING_FEEDBACK: {feedback}",
+            Importance = 6.0,
+            CreatedAt = DateTime.UtcNow,
             InstanceId = _instanceId,
-            Content = $"IMPROVEMENT_SUGGESTION: {feedback.Interpretation}",
-            Category = "improvements",
-            Importance = 7,
-            Timestamp = DateTime.UtcNow,
-            Tags = "feedback,suggestion,improvement"
+            Category = "learning"
         });
         
         await db.SaveChangesAsync();

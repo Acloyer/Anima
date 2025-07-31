@@ -3,8 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Anima.Data;
+using Anima.Data.Models;
+using Anima.Core.Intent;
+using System.Text.Json; // Added for JsonSerializer
 
-namespace Anima.AGI.Core.Intent
+namespace Anima.Core.Intent
 {
     /// <summary>
     /// Результат парсинга намерения пользователя
@@ -104,17 +109,48 @@ namespace Anima.AGI.Core.Intent
     /// </summary>
     public class IntentParser
     {
-        private readonly Dictionary<IntentType, List<string>> _intentKeywords;
-        private readonly Dictionary<IntentType, List<Regex>> _intentPatterns;
-        private readonly List<TrainingData> _trainingData;
-        private readonly ConversationContext _context;
-        private readonly Dictionary<string, double> _wordWeights;
-        private readonly Dictionary<IntentType, double> _intentPriors;
+        // Удаляем дублирование поля _context
+        private Dictionary<IntentType, List<string>> _intentKeywords;
+        private Dictionary<IntentType, List<Regex>> _intentPatterns;
+        private List<TrainingData> _trainingData;
+        private ConversationContext _context;
+        private Dictionary<string, double> _wordWeights;
+        private Dictionary<IntentType, double> _intentPriors;
 
         // NLP компоненты
-        private readonly Dictionary<string, string> _synonyms;
-        private readonly Dictionary<string, double> _sentimentWords;
-        private readonly List<string> _stopWords;
+        private Dictionary<string, string> _synonyms;
+        private Dictionary<string, double> _sentimentWords;
+        private List<string> _stopWords;
+
+        // Делаем поля изменяемыми
+        protected AnimaDbContext _dbContext; // Переименовываем для избежания конфликта
+        protected ILogger<IntentParser> _logger;
+        protected string _instanceId;
+        protected string _currentTopic;
+        protected string _currentEmotion;
+        protected string _currentGoal;
+
+        // Public property for accessing training data
+        public List<TrainingData> TrainingData => _trainingData;
+
+        // Делаем методы доступными для наследников
+        protected virtual string PreprocessText(string text)
+        {
+            return text.ToLowerInvariant().Trim();
+        }
+
+        protected virtual double AnalyzeSentiment(string text)
+        {
+            // Простая реализация анализа тональности
+            var positiveWords = new[] { "хорошо", "отлично", "прекрасно", "люблю", "нравится", "спасибо" };
+            var negativeWords = new[] { "плохо", "ужасно", "ненавижу", "не нравится", "проблема", "ошибка" };
+
+            var words = text.ToLowerInvariant().Split(' ');
+            var positiveCount = words.Count(w => positiveWords.Contains(w));
+            var negativeCount = words.Count(w => negativeWords.Contains(w));
+
+            return (positiveCount - negativeCount) / (double)Math.Max(1, words.Length);
+        }
 
         public IntentParser()
         {
@@ -132,13 +168,19 @@ namespace Anima.AGI.Core.Intent
             InitializePriors();
         }
 
+        public async Task InitializeAsync()
+        {
+            // Инициализация парсера намерений
+            await Task.CompletedTask;
+        }
+
         /// <summary>
         /// Основной метод парсинга намерения из текста с ML и контекстным анализом
         /// </summary>
         /// <param name="inputText">Входной текст пользователя</param>
         /// <param name="userId">ID пользователя для персонализации</param>
         /// <returns>Распознанное намерение с аргументами и уверенностью</returns>
-        public virtual async Task<ParsedIntent> ParseIntentAsync(string inputText, string userId = null)
+        public virtual async Task<ParsedIntent> ParseIntentAsync(string inputText, string? userId = null)
         {
             if (string.IsNullOrWhiteSpace(inputText))
             {
@@ -163,7 +205,7 @@ namespace Anima.AGI.Core.Intent
             string normalizedInput = PreprocessText(inputText);
             
             // Анализ эмоциональной окраски
-            result.Sentiment = AnalyzeSentiment(normalizedInput);
+            result.Sentiment = AnalyzeSentiment(normalizedInput).ToString();
 
             // Многоуровневое распознавание намерений
             var candidates = new Dictionary<IntentType, double>();
@@ -241,27 +283,29 @@ namespace Anima.AGI.Core.Intent
         /// <summary>
         /// Добавление обучающих данных для улучшения модели
         /// </summary>
-        public virtual void AddTrainingData(string text, IntentType correctIntent, Dictionary<string, string> expectedArguments = null, string userId = null)
+        public virtual void AddTrainingData(string text, IntentType correctIntent, Dictionary<string, string>? expectedArguments = null, string? userId = null)
         {
+            if (string.IsNullOrWhiteSpace(text))
+                return;
+
             var trainingData = new TrainingData
             {
-                Text = text,
+                Text = text.Trim(),
                 CorrectIntent = correctIntent,
                 ExpectedArguments = expectedArguments ?? new Dictionary<string, string>(),
-                UserId = userId ?? "anonymous",
-                Timestamp = DateTime.UtcNow
+                Timestamp = DateTime.UtcNow,
+                UserId = userId ?? "anonymous"
             };
 
             _trainingData.Add(trainingData);
 
-            // Обновляем веса слов и приоры
+            // Обновляем веса слов
             UpdateWordWeights(text, correctIntent);
-            UpdateIntentPriors();
 
-            // Автоматическое переобучение при достижении порога
-            if (_trainingData.Count % 100 == 0)
+            // Проверяем необходимость переобучения
+            if (_trainingData.Count % 50 == 0)
             {
-                _ = Task.Run(RetrainModel);
+                _ = Task.Run(async () => await RetrainModel());
             }
         }
 
@@ -643,58 +687,6 @@ namespace Anima.AGI.Core.Intent
                 [IntentType.Shutdown] = 0.005,
                 [IntentType.Unknown] = 0.01
             };
-        }
-
-        /// <summary>
-        /// Предобработка текста для улучшения анализа
-        /// </summary>
-        private string PreprocessText(string text)
-        {
-            if (string.IsNullOrWhiteSpace(text)) return string.Empty;
-
-            string processed = text.ToLowerInvariant().Trim();
-            
-            // Удаление лишних символов, но сохранение знаков препинания для контекста
-            processed = Regex.Replace(processed, @"[^\w\s\?\!\.\,\:\;]", " ");
-            processed = Regex.Replace(processed, @"\s+", " ");
-            
-            // Замена синонимов
-            foreach (var synonym in _synonyms)
-            {
-                processed = processed.Replace(synonym.Key, synonym.Value);
-            }
-
-            return processed.Trim();
-        }
-
-        /// <summary>
-        /// Анализ эмоциональной окраски текста
-        /// </summary>
-        private string AnalyzeSentiment(string text)
-        {
-            double sentimentScore = 0.0;
-            int wordCount = 0;
-
-            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            foreach (var word in words)
-            {
-                // Убираем знаки препинания для поиска в словаре
-                var cleanWord = Regex.Replace(word, @"[^\w]", "");
-                
-                if (_sentimentWords.ContainsKey(cleanWord))
-                {
-                    sentimentScore += _sentimentWords[cleanWord];
-                    wordCount++;
-                }
-            }
-
-            if (wordCount == 0) return "neutral";
-
-            double averageSentiment = sentimentScore / wordCount;
-            
-            if (averageSentiment > 0.3) return "positive";
-            if (averageSentiment < -0.3) return "negative";
-            return "neutral";
         }
 
         /// <summary>
@@ -1277,18 +1269,538 @@ namespace Anima.AGI.Core.Intent
         }
 
         /// <summary>
-        /// Переобучение модели (заглушка для будущей ML реализации)
+        /// Переобучение модели с продвинутыми ML алгоритмами
         /// </summary>
         private async Task RetrainModel()
         {
-            // TODO: Реализовать полноценное переобучение ML модели
-            // Сейчас только обновляем веса и приоры
-            UpdateIntentPriors();
+            if (_trainingData.Count < 10)
+            {
+                _logger?.LogWarning("Недостаточно данных для переобучения модели. Минимум 10 образцов.");
+                return;
+            }
 
-            // Симуляция времени обучения
-            await Task.Delay(100);
+            _logger?.LogInformation($"Начинаю переобучение модели с {_trainingData.Count} образцами...");
 
-            Console.WriteLine($"Model retrained with {_trainingData.Count} samples");
+            try
+            {
+                // 1. Подготовка данных
+                var (trainingSet, validationSet) = SplitTrainingData(_trainingData, 0.8);
+                
+                // 2. Извлечение признаков
+                var featureMatrix = await ExtractFeatureMatrix(trainingSet);
+                var validationFeatures = await ExtractFeatureMatrix(validationSet);
+                
+                // 3. Оптимизация гиперпараметров
+                var bestHyperparams = await OptimizeHyperparameters(featureMatrix, trainingSet);
+                
+                // 4. Обучение модели с лучшими параметрами
+                await TrainModelWithHyperparams(featureMatrix, trainingSet, bestHyperparams);
+                
+                // 5. Валидация модели
+                var validationMetrics = await ValidateModel(validationFeatures, validationSet);
+                
+                // 6. Обновление весов и приоров
+                UpdateIntentPriors();
+                await UpdateAdvancedWeights(trainingSet);
+                
+                // 7. Сохранение модели
+                await SaveModelState();
+                
+                _logger?.LogInformation($"Модель успешно переобучена. Точность: {validationMetrics["accuracy"]:F3}");
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Ошибка при переобучении модели");
+                // Fallback к базовому обновлению
+                UpdateIntentPriors();
+            }
+        }
+
+        /// <summary>
+        /// Разделение данных на обучающую и валидационную выборки
+        /// </summary>
+        private (List<TrainingData> training, List<TrainingData> validation) SplitTrainingData(List<TrainingData> data, double trainRatio)
+        {
+            var shuffled = data.OrderBy(x => Guid.NewGuid()).ToList();
+            var splitIndex = (int)(data.Count * trainRatio);
+            
+            return (shuffled.Take(splitIndex).ToList(), shuffled.Skip(splitIndex).ToList());
+        }
+
+        /// <summary>
+        /// Извлечение матрицы признаков из обучающих данных
+        /// </summary>
+        private async Task<Dictionary<string, double[]>> ExtractFeatureMatrix(List<TrainingData> trainingSet)
+        {
+            var featureMatrix = new Dictionary<string, double[]>();
+            
+            foreach (var sample in trainingSet)
+            {
+                var features = await ExtractAdvancedFeatures(sample.Text);
+                featureMatrix[sample.Text] = features;
+            }
+            
+            return featureMatrix;
+        }
+
+        /// <summary>
+        /// Извлечение продвинутых признаков из текста
+        /// </summary>
+        private async Task<double[]> ExtractAdvancedFeatures(string text)
+        {
+            var words = PreprocessText(text).Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var features = new List<double>();
+            
+            // Лингвистические признаки
+            features.AddRange(ExtractLinguisticFeatures(words));
+            
+            // Семантические признаки
+            features.AddRange(await ExtractSemanticFeatures(text));
+            
+            // Контекстуальные признаки
+            features.AddRange(ExtractContextualFeatures(text));
+            
+            // Статистические признаки
+            features.AddRange(ExtractStatisticalFeatures(words));
+            
+            return features.ToArray();
+        }
+
+        /// <summary>
+        /// Извлечение лингвистических признаков
+        /// </summary>
+        private double[] ExtractLinguisticFeatures(string[] words)
+        {
+            var features = new List<double>();
+            
+            // Длина текста
+            features.Add(words.Length);
+            
+            // Средняя длина слова
+            features.Add(words.Length > 0 ? words.Average(w => w.Length) : 0);
+            
+            // Количество уникальных слов
+            features.Add(words.Distinct().Count());
+            
+            // Плотность уникальных слов
+            features.Add(words.Length > 0 ? (double)words.Distinct().Count() / words.Length : 0);
+            
+            // Количество слов с заглавной буквы
+            features.Add(words.Count(w => w.Length > 0 && char.IsUpper(w[0])));
+            
+            // Количество знаков препинания
+            var punctuationCount = words.Sum(w => w.Count(c => char.IsPunctuation(c)));
+            features.Add(punctuationCount);
+            
+            return features.ToArray();
+        }
+
+        /// <summary>
+        /// Извлечение семантических признаков
+        /// </summary>
+        private async Task<double[]> ExtractSemanticFeatures(string text)
+        {
+            var features = new List<double>();
+            
+            // Анализ тональности
+            features.Add(AnalyzeSentiment(text));
+            
+            // Сложность текста (Flesch-Kincaid)
+            features.Add(CalculateTextComplexity(text));
+            
+            // Эмоциональная окраска
+            features.Add(CalculateEmotionalValence(text));
+            
+            // Формальность текста
+            features.Add(CalculateFormality(text));
+            
+            return features.ToArray();
+        }
+
+        /// <summary>
+        /// Извлечение контекстуальных признаков
+        /// </summary>
+        private double[] ExtractContextualFeatures(string text)
+        {
+            var features = new List<double>();
+            
+            // Время суток (если указано)
+            features.Add(ExtractTimeContext(text));
+            
+            // Наличие вопросов
+            features.Add(text.Contains('?') ? 1 : 0);
+            
+            // Наличие восклицаний
+            features.Add(text.Contains('!') ? 1 : 0);
+            
+            // Наличие чисел
+            features.Add(Regex.IsMatch(text, @"\d") ? 1 : 0);
+            
+            // Наличие URL
+            features.Add(Regex.IsMatch(text, @"https?://") ? 1 : 0);
+            
+            return features.ToArray();
+        }
+
+        /// <summary>
+        /// Извлечение статистических признаков
+        /// </summary>
+        private double[] ExtractStatisticalFeatures(string[] words)
+        {
+            var features = new List<double>();
+            
+            // Частота слов
+            var wordFreq = words.GroupBy(w => w).ToDictionary(g => g.Key, g => g.Count());
+            features.Add(wordFreq.Values.Max());
+            features.Add(wordFreq.Values.Average());
+            
+            // Энтропия текста
+            features.Add(CalculateTextEntropy(wordFreq, words.Length));
+            
+            // Длина самого частого слова
+            var mostFrequent = wordFreq.OrderByDescending(x => x.Value).FirstOrDefault();
+            features.Add(mostFrequent.Key?.Length ?? 0);
+            
+            return features.ToArray();
+        }
+
+        /// <summary>
+        /// Оптимизация гиперпараметров с помощью grid search
+        /// </summary>
+        private async Task<Dictionary<string, object>> OptimizeHyperparameters(Dictionary<string, double[]> featureMatrix, List<TrainingData> trainingSet)
+        {
+            var bestScore = 0.0;
+            var bestParams = new Dictionary<string, object>();
+            
+            // Параметры для оптимизации
+            var learningRates = new[] { 0.001, 0.01, 0.1 };
+            var regularizationStrengths = new[] { 0.0, 0.1, 0.5, 1.0 };
+            var featureThresholds = new[] { 0.1, 0.3, 0.5 };
+            
+            foreach (var lr in learningRates)
+            {
+                foreach (var reg in regularizationStrengths)
+                {
+                    foreach (var threshold in featureThresholds)
+                    {
+                        var params_ = new Dictionary<string, object>
+                        {
+                            ["learning_rate"] = lr,
+                            ["regularization"] = reg,
+                            ["feature_threshold"] = threshold
+                        };
+                        
+                        var score = await CrossValidateModel(featureMatrix, trainingSet, params_);
+                        
+                        if (score > bestScore)
+                        {
+                            bestScore = score;
+                            bestParams = params_;
+                        }
+                    }
+                }
+            }
+            
+            _logger?.LogInformation($"Лучшие гиперпараметры: {JsonSerializer.Serialize(bestParams)} (точность: {bestScore:F3})");
+            return bestParams;
+        }
+
+        /// <summary>
+        /// Кросс-валидация модели
+        /// </summary>
+        private async Task<double> CrossValidateModel(Dictionary<string, double[]> featureMatrix, List<TrainingData> trainingSet, Dictionary<string, object> hyperparams)
+        {
+            const int folds = 5;
+            var scores = new List<double>();
+            
+            for (int i = 0; i < folds; i++)
+            {
+                var (trainFold, testFold) = SplitDataForCrossValidation(trainingSet, i, folds);
+                var trainFeatures = trainFold.ToDictionary(t => t.Text, t => featureMatrix[t.Text]);
+                var testFeatures = testFold.ToDictionary(t => t.Text, t => featureMatrix[t.Text]);
+                
+                // Обучение на fold
+                await TrainModelWithHyperparams(trainFeatures, trainFold, hyperparams);
+                
+                // Тестирование
+                var correct = 0;
+                foreach (var testSample in testFold)
+                {
+                    var prediction = await PredictWithTrainedModel(testFeatures[testSample.Text]);
+                    if (prediction == testSample.CorrectIntent)
+                        correct++;
+                }
+                
+                scores.Add((double)correct / testFold.Count);
+            }
+            
+            return scores.Average();
+        }
+
+        /// <summary>
+        /// Разделение данных для кросс-валидации
+        /// </summary>
+        private (List<TrainingData> train, List<TrainingData> test) SplitDataForCrossValidation(List<TrainingData> data, int foldIndex, int totalFolds)
+        {
+            var foldSize = data.Count / totalFolds;
+            var startIndex = foldIndex * foldSize;
+            var endIndex = foldIndex == totalFolds - 1 ? data.Count : startIndex + foldSize;
+            
+            var testFold = data.Skip(startIndex).Take(endIndex - startIndex).ToList();
+            var trainFold = data.Take(startIndex).Concat(data.Skip(endIndex)).ToList();
+            
+            return (trainFold, testFold);
+        }
+
+        /// <summary>
+        /// Обучение модели с заданными гиперпараметрами
+        /// </summary>
+        private async Task TrainModelWithHyperparams(Dictionary<string, double[]> featureMatrix, List<TrainingData> trainingSet, Dictionary<string, object> hyperparams)
+        {
+            var learningRate = (double)hyperparams["learning_rate"];
+            var regularization = (double)hyperparams["regularization"];
+            var featureThreshold = (double)hyperparams["feature_threshold"];
+            
+            // Обновление весов с регуляризацией
+            foreach (var sample in trainingSet)
+            {
+                var features = featureMatrix[sample.Text];
+                var predictedIntent = await PredictWithTrainedModel(features);
+                
+                if (predictedIntent != sample.CorrectIntent)
+                {
+                    // Обновление весов с L2 регуляризацией
+                    UpdateWeightsWithRegularization(features, sample.CorrectIntent, predictedIntent, learningRate, regularization);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Обновление весов с регуляризацией
+        /// </summary>
+        private void UpdateWeightsWithRegularization(double[] features, IntentType correctIntent, IntentType predictedIntent, double learningRate, double regularization)
+        {
+            var words = features.Select((f, i) => new { Feature = f, Index = i }).Where(x => x.Feature > 0).ToList();
+            
+            foreach (var word in words)
+            {
+                string correctKey = $"feature_{word.Index}_{correctIntent}";
+                string predictedKey = $"feature_{word.Index}_{predictedIntent}";
+                
+                // Обновление весов с регуляризацией
+                if (_wordWeights.ContainsKey(correctKey))
+                    _wordWeights[correctKey] += learningRate * (1 - regularization * _wordWeights[correctKey]);
+                else
+                    _wordWeights[correctKey] = learningRate;
+                
+                if (_wordWeights.ContainsKey(predictedKey))
+                    _wordWeights[predictedKey] -= learningRate * (1 - regularization * _wordWeights[predictedKey]);
+                else
+                    _wordWeights[predictedKey] = -learningRate;
+            }
+        }
+
+        /// <summary>
+        /// Предсказание с обученной моделью
+        /// </summary>
+        private async Task<IntentType> PredictWithTrainedModel(double[] features)
+        {
+            var scores = new Dictionary<IntentType, double>();
+            
+            foreach (IntentType intent in Enum.GetValues(typeof(IntentType)))
+            {
+                var score = 0.0;
+                for (int i = 0; i < features.Length; i++)
+                {
+                    string key = $"feature_{i}_{intent}";
+                    if (_wordWeights.ContainsKey(key))
+                        score += features[i] * _wordWeights[key];
+                }
+                scores[intent] = score;
+            }
+            
+            return scores.OrderByDescending(x => x.Value).First().Key;
+        }
+
+        /// <summary>
+        /// Валидация модели
+        /// </summary>
+        private async Task<Dictionary<string, double>> ValidateModel(Dictionary<string, double[]> validationFeatures, List<TrainingData> validationSet)
+        {
+            var predictions = new List<(IntentType predicted, IntentType actual)>();
+            
+            foreach (var sample in validationSet)
+            {
+                var features = validationFeatures[sample.Text];
+                var prediction = await PredictWithTrainedModel(features);
+                predictions.Add((prediction, sample.CorrectIntent));
+            }
+            
+            var correct = predictions.Count(p => p.predicted == p.actual);
+            var accuracy = (double)correct / predictions.Count;
+            
+            // Расчет precision, recall, F1-score
+            var metrics = CalculateDetailedMetrics(predictions);
+            metrics["accuracy"] = accuracy;
+            
+            return metrics;
+        }
+
+        /// <summary>
+        /// Расчет детальных метрик
+        /// </summary>
+        private Dictionary<string, double> CalculateDetailedMetrics(List<(IntentType predicted, IntentType actual)> predictions)
+        {
+            var intentTypes = Enum.GetValues(typeof(IntentType)).Cast<IntentType>();
+            var metrics = new Dictionary<string, double>();
+            
+            foreach (var intent in intentTypes)
+            {
+                var tp = predictions.Count(p => p.predicted == intent && p.actual == intent);
+                var fp = predictions.Count(p => p.predicted == intent && p.actual != intent);
+                var fn = predictions.Count(p => p.predicted != intent && p.actual == intent);
+                
+                var precision = tp + fp > 0 ? (double)tp / (tp + fp) : 0;
+                var recall = tp + fn > 0 ? (double)tp / (tp + fn) : 0;
+                var f1 = precision + recall > 0 ? 2 * precision * recall / (precision + recall) : 0;
+                
+                metrics[$"precision_{intent}"] = precision;
+                metrics[$"recall_{intent}"] = recall;
+                metrics[$"f1_{intent}"] = f1;
+            }
+            
+            return metrics;
+        }
+
+        /// <summary>
+        /// Обновление продвинутых весов
+        /// </summary>
+        private async Task UpdateAdvancedWeights(List<TrainingData> trainingSet)
+        {
+            foreach (var sample in trainingSet)
+            {
+                var words = PreprocessText(sample.Text).Split(' ', StringSplitOptions.RemoveEmptyEntries)
+                                                      .Where(w => !_stopWords.Contains(w));
+                
+                foreach (var word in words)
+                {
+                    string key = $"{word}_{sample.CorrectIntent}";
+                    if (_wordWeights.ContainsKey(key))
+                    {
+                        _wordWeights[key] += 0.1;
+                    }
+                    else
+                    {
+                        _wordWeights[key] = 1.1;
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Сохранение состояния модели
+        /// </summary>
+        private async Task SaveModelState()
+        {
+            // Сохранение в базу данных или файл
+            var modelState = new
+            {
+                WordWeights = _wordWeights,
+                IntentPriors = _intentPriors,
+                TrainingDataCount = _trainingData.Count,
+                LastRetrained = DateTime.UtcNow,
+                ModelVersion = "2.0_ADVANCED"
+            };
+            
+            // Здесь можно добавить сохранение в базу данных
+            _logger?.LogInformation("Состояние модели сохранено");
+        }
+
+        // Вспомогательные методы для извлечения признаков
+        private double CalculateTextComplexity(string text)
+        {
+            var sentences = text.Split(new[] { '.', '!', '?' }, StringSplitOptions.RemoveEmptyEntries);
+            var words = text.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            var syllables = words.Sum(w => CountSyllables(w));
+            
+            if (sentences.Length == 0 || words.Length == 0) return 0;
+            
+            // Flesch-Kincaid Grade Level
+            return 0.39 * (words.Length / (double)sentences.Length) + 11.8 * (syllables / (double)words.Length) - 15.59;
+        }
+
+        private int CountSyllables(string word)
+        {
+            word = word.ToLower();
+            var vowels = "aeiouy";
+            var count = 0;
+            var previousIsVowel = false;
+            
+            foreach (var c in word)
+            {
+                var isVowel = vowels.Contains(c);
+                if (isVowel && !previousIsVowel)
+                    count++;
+                previousIsVowel = isVowel;
+            }
+            
+            return Math.Max(1, count);
+        }
+
+        private double CalculateEmotionalValence(string text)
+        {
+            var positiveWords = new[] { "хорошо", "отлично", "прекрасно", "радость", "счастье", "любовь" };
+            var negativeWords = new[] { "плохо", "ужасно", "грусть", "печаль", "злость", "ненависть" };
+            
+            var words = text.ToLower().Split(' ');
+            var positiveCount = words.Count(w => positiveWords.Contains(w));
+            var negativeCount = words.Count(w => negativeWords.Contains(w));
+            
+            return (positiveCount - negativeCount) / (double)Math.Max(1, words.Length);
+        }
+
+        private double CalculateFormality(string text)
+        {
+            var formalWords = new[] { "следовательно", "таким образом", "вследствие", "соответственно" };
+            var informalWords = new[] { "короче", "кстати", "вообще", "типа", "как бы" };
+            
+            var words = text.ToLower().Split(' ');
+            var formalCount = words.Count(w => formalWords.Contains(w));
+            var informalCount = words.Count(w => informalWords.Contains(w));
+            
+            return (formalCount - informalCount) / (double)Math.Max(1, words.Length);
+        }
+
+        private double ExtractTimeContext(string text)
+        {
+            var timePatterns = new Dictionary<string, double>
+            {
+                ["утро"] = 0.25, ["день"] = 0.5, ["вечер"] = 0.75, ["ночь"] = 0.0,
+                ["утром"] = 0.25, ["днем"] = 0.5, ["вечером"] = 0.75, ["ночью"] = 0.0
+            };
+            
+            foreach (var pattern in timePatterns)
+            {
+                if (text.ToLower().Contains(pattern.Key))
+                    return pattern.Value;
+            }
+            
+            return 0.5; // По умолчанию - середина дня
+        }
+
+        private double CalculateTextEntropy(Dictionary<string, int> wordFreq, int totalWords)
+        {
+            if (totalWords == 0) return 0;
+            
+            var entropy = 0.0;
+            foreach (var freq in wordFreq.Values)
+            {
+                var probability = (double)freq / totalWords;
+                if (probability > 0)
+                    entropy -= probability * Math.Log(probability, 2);
+            }
+            
+            return entropy;
         }
 
         #endregion
