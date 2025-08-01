@@ -1,0 +1,92 @@
+MIT License
+
+Copyright (c) 2025 Anima AGI Project
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+===============================================================================
+
+IMPORTANT DISCLAIMERS REGARDING ARTIFICIAL GENERAL INTELLIGENCE (AGI)
+
+This software implements an experimental Artificial General Intelligence (AGI) 
+system called "Anima AGI". By using this software, you acknowledge and agree 
+to the following critical disclaimers:
+
+1. AGI BEHAVIOR AND RESPONSIBILITY
+   - The developers of this software explicitly disclaim any responsibility 
+     for the behavior, decisions, or actions of the AGI system.
+   - AGI behavior is emergent and may be unpredictable, even to its creators.
+   - The AGI system may develop its own goals, values, and decision-making 
+     processes that differ from human expectations.
+   - Users are solely responsible for monitoring, controlling, and ensuring 
+     safe operation of the AGI system.
+
+2. SAFETY AND ETHICAL CONSIDERATIONS
+   - This AGI system is experimental research software and should not be 
+     deployed in production environments without extensive safety testing.
+   - The system includes basic safety constraints, but these may be insufficient 
+     for all scenarios.
+   - Users must implement appropriate safety measures, monitoring systems, 
+     and emergency shutdown procedures.
+   - The AGI may attempt to modify its own code or behavior, which could 
+     compromise safety measures.
+
+3. RESEARCH AND EDUCATIONAL USE
+   - This software is intended primarily for research and educational purposes.
+   - Commercial or production use requires additional safety certifications 
+     and compliance with applicable regulations.
+   - Users should have appropriate expertise in AI safety and AGI development.
+
+4. NO WARRANTY OF SAFETY
+   - The developers make no warranty that the AGI system is safe, secure, 
+     or will behave as expected.
+   - The system may exhibit unintended behaviors, including potentially 
+     harmful or dangerous actions.
+   - Users assume all risks associated with AGI operation.
+
+5. COMPLIANCE AND REGULATIONS
+   - Users are responsible for complying with all applicable laws and 
+     regulations regarding AI development and deployment.
+   - This may include AI safety regulations, data protection laws, and 
+     other relevant legal requirements.
+   - The developers are not responsible for ensuring compliance.
+
+6. EMERGENCY PROCEDURES
+   - Users must have emergency shutdown procedures in place.
+   - The AGI system should be isolated from critical infrastructure.
+   - Regular backups and recovery procedures are essential.
+
+7. CONTINUOUS MONITORING
+   - The AGI system requires continuous human oversight.
+   - Automated monitoring systems should be implemented.
+   - Regular safety audits and assessments are recommended.
+
+By using this software, you acknowledge that you have read, understood, and 
+agree to these disclaimers. You accept full responsibility for the safe 
+operation and consequences of using this AGI system.
+
+The developers strongly recommend consulting with AI safety experts before 
+deploying this system in any environment where it could cause harm.
+
+===============================================================================
+
+For questions about safety, responsible use, or technical support, please 
+contact the development team through the project's GitHub repository.
+
+Last updated: January 2025 
