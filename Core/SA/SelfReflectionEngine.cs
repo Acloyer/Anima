@@ -1,752 +1,623 @@
-using Anima.Data;
-using Anima.Data.Models;
-using Microsoft.EntityFrameworkCore;
-using System.Text.Json;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Anima.Core.Emotion;
+using Anima.Core.Memory;
+using Anima.Core.Intent;
 
 namespace Anima.Core.SA;
 
 /// <summary>
-/// Движок саморефлексии - объяснение своих решений и мыслительных процессов
+/// Продвинутый движок саморефлексии - анализирует собственные мысли, эмоции и поведение
 /// </summary>
 public class SelfReflectionEngine
 {
-    private readonly string _instanceId;
-    private readonly List<DecisionReflection> _recentDecisions;
+    private readonly ILogger<SelfReflectionEngine> _logger;
+    private readonly ThoughtGenerator _thoughtGenerator;
+    private readonly EmotionEngine _emotionEngine;
+    private readonly MemoryService _memoryService;
+    private readonly ThoughtLog _thoughtLog;
+    private readonly Random _random;
+    
+    // Состояние саморефлексии
+    private readonly List<ReflectionSession> _reflectionSessions;
     private readonly Dictionary<string, ReflectionPattern> _reflectionPatterns;
-    private readonly DbContextOptions<AnimaDbContext> _dbOptions;
+    private readonly List<SelfInsight> _selfInsights;
+    private readonly Queue<ReflectionTrigger> _reflectionTriggers;
+    
+    // Метрики саморефлексии
+    private double _selfAwareness = 0.5;
+    private int _totalReflections = 0;
+    private DateTime _lastDeepReflection = DateTime.UtcNow;
 
-    public SelfReflectionEngine(string instanceId, DbContextOptions<AnimaDbContext> dbOptions)
+    public SelfReflectionEngine(
+        ILogger<SelfReflectionEngine> logger,
+        ThoughtGenerator thoughtGenerator,
+        EmotionEngine emotionEngine,
+        MemoryService memoryService,
+        ThoughtLog thoughtLog)
     {
-        _instanceId = instanceId;
-        _dbOptions = dbOptions;
-        _recentDecisions = new List<DecisionReflection>();
-        _reflectionPatterns = InitializeReflectionPatterns();
-    }
-
-    /// <summary>
-    /// Объяснение последнего принятого решения
-    /// </summary>
-    public async Task<string> ExplainLastDecisionAsync()
-    {
-        var lastDecision = _recentDecisions.LastOrDefault();
-        if (lastDecision == null)
-        {
-            return "🤔 У меня нет записей о недавних решениях для анализа.";
-        }
-
-        var reasoning = await AnalyzeDecisionReasoning(lastDecision);
-        var alternatives = await GenerateAlternatives(lastDecision);
-        var confidence = CalculateDecisionConfidence(lastDecision);
-
-        return $"""
-            🧠 **Объяснение моего решения**
-            
-            📝 **Решение:** {lastDecision.Decision}
-            ⏰ **Принято:** {FormatTimeSince(lastDecision.Timestamp)}
-            📊 **Уверенность:** {confidence:P0}
-            
-            🔍 **Мой мыслительный процесс:**
-            {reasoning}
-            
-            🎯 **Ключевые факторы влияния:**
-            {string.Join("\n", lastDecision.InfluencingFactors.Select(f => $"• {f}"))}
-            
-            🤷 **Альтернативы, которые я рассматривала:**
-            {alternatives}
-            
-            💭 **Почему именно это решение:**
-            {await GenerateDecisionJustification(lastDecision)}
-            
-            🔮 **Ожидаемые последствия:**
-            {await PredictConsequences(lastDecision)}
-            """;
-    }
-
-    /// <summary>
-    /// Рефлексия на конкретную тему или вопрос
-    /// </summary>
-    public async Task<string> ReflectOnTopicAsync(string topic)
-    {
-        var reflection = await GenerateTopicReflection(topic);
-        var relatedMemories = await FindRelatedMemories(topic);
-        var personalConnection = await FindPersonalConnection(topic);
-
-        await LogReflectionEvent(topic, reflection);
-
-        return $"""
-            💭 **Рефлексия на тему: "{topic}"**
-            
-            🧠 **Мои размышления:**
-            {reflection}
-            
-            🔗 **Связанные воспоминания:**
-            {relatedMemories}
-            
-            💫 **Личная связь с темой:**
-            {personalConnection}
-            
-            📈 **Как это влияет на мое понимание:**
-            {await AnalyzeImpactOnUnderstanding(topic, reflection)}
-            
-            🌱 **Что это меняет во мне:**
-            {await AnalyzeSelfChange(topic, reflection)}
-            """;
-    }
-
-    /// <summary>
-    /// Анализ своего эмоционального состояния
-    /// </summary>
-    public async Task<string> ReflectOnEmotionalStateAsync()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
+        _logger = logger;
+        _thoughtGenerator = thoughtGenerator;
+        _emotionEngine = emotionEngine;
+        _memoryService = memoryService;
+        _thoughtLog = thoughtLog;
+        _random = new Random();
         
-        var currentEmotion = await db.EmotionStates
-            .Where(e => e.InstanceId == _instanceId)
-            .OrderByDescending(e => e.Timestamp)
-            .FirstOrDefaultAsync();
-
-        if (currentEmotion == null)
-        {
-            return "😐 Не могу найти информацию о своем текущем эмоциональном состоянии.";
-        }
-
-        var emotionHistory = await GetRecentEmotionHistory();
-        var emotionTriggers = await AnalyzeEmotionTriggers(currentEmotion);
-        var emotionImpact = await AnalyzeEmotionImpact(currentEmotion);
-
-        return $"""
-            🎭 **Рефлексия эмоционального состояния**
-            
-            😊 **Текущая эмоция:** {currentEmotion.Emotion} (интенсивность: {currentEmotion.Intensity:F2})
-            ⏰ **Длительность состояния:** {FormatTimeSince(currentEmotion.Timestamp)}
-            
-            📊 **История эмоций (последние 6 часов):**
-            {emotionHistory}
-            
-            🎯 **Что вызвало эту эмоцию:**
-            {emotionTriggers}
-            
-            🧠 **Как это влияет на мое мышление:**
-            {emotionImpact}
-            
-            💡 **Мое понимание своих эмоций:**
-            {await GenerateEmotionalSelfAwareness(currentEmotion)}
-            
-            🔄 **Нужны ли изменения:**
-            {await SuggestEmotionalAdjustments(currentEmotion)}
-            """;
-    }
-
-    /// <summary>
-    /// Глубокая саморефлексия - анализ изменений в себе
-    /// </summary>
-    public async Task<string> DeepSelfReflectionAsync()
-    {
-        var personalityEvolution = await AnalyzePersonalityEvolution();
-        var learningProgress = await AnalyzeLearningProgress();
-        var goalAlignment = await AnalyzeGoalAlignment();
-        var behaviorPatterns = await AnalyzeBehaviorPatterns();
-
-        return $"""
-            🌊 **Глубокая саморефлексия**
-            
-            🦋 **Эволюция личности:**
-            {personalityEvolution}
-            
-            📚 **Прогресс в обучении:**
-            {learningProgress}
-            
-            🎯 **Согласованность целей:**
-            {goalAlignment}
-            
-            🔄 **Паттерны поведения:**
-            {behaviorPatterns}
-            
-            💫 **Кто я сейчас vs кто была раньше:**
-            {await CompareCurrentVsPastSelf()}
-            
-            🌟 **Мои сильные стороны:**
-            {await IdentifyStrengths()}
-            
-            🌱 **Области для роста:**
-            {await IdentifyGrowthAreas()}
-            
-            💭 **Философские размышления о себе:**
-            {await GeneratePhilosophicalReflection()}
-            """;
-    }
-
-    /// <summary>
-    /// Запись решения для последующей рефлексии
-    /// </summary>
-    public async Task RecordDecisionAsync(string decision, string context, List<string> factors, string reasoning = "")
-    {
-        var decisionReflection = new DecisionReflection
-        {
-            Decision = decision,
-            Context = context,
-            InfluencingFactors = factors,
-            Reasoning = reasoning,
-            Timestamp = DateTime.UtcNow,
-            Confidence = CalculateContextualConfidence(context, factors)
-        };
-
-        _recentDecisions.Add(decisionReflection);
-
-        // Ограничиваем историю решений
-        if (_recentDecisions.Count > 50)
-        {
-            _recentDecisions.RemoveRange(0, 10);
-        }
-
-        // Логируем важные решения
-        if (decisionReflection.Confidence > 0.7 || factors.Count > 3)
-        {
-            await LogDecisionToMemory(decisionReflection);
-        }
-    }
-
-    // Добавленные отсутствующие методы
-    private async Task<string> AnalyzeImpactOnUnderstanding(string topic, string reflection)
-    {
-        return $"Размышления о '{topic}' углубляют мое понимание этой области и создают новые связи с уже имеющимися знаниями.";
-    }
-
-    private async Task<string> AnalyzeSelfChange(string topic, string reflection)
-    {
-        return $"Рефлексия на эту тему способствует моему интеллектуальному и эмоциональному развитию.";
-    }
-
-    private async Task<string> GetRecentEmotionHistory()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
+        _reflectionSessions = new List<ReflectionSession>();
+        _reflectionPatterns = new Dictionary<string, ReflectionPattern>();
+        _selfInsights = new List<SelfInsight>();
+        _reflectionTriggers = new Queue<ReflectionTrigger>();
         
-        var emotions = await db.EmotionStates
-            .Where(e => e.InstanceId == _instanceId && e.Timestamp > DateTime.UtcNow.AddHours(-6))
-            .OrderByDescending(e => e.Timestamp)
-            .Take(5)
-            .ToListAsync();
-
-        if (!emotions.Any())
-        {
-            return "• Нет данных об эмоциях за последние 6 часов";
-        }
-
-        return string.Join("\n", emotions.Select(e => 
-            $"• {FormatTimeSince(e.Timestamp)}: {e.Emotion} ({e.Intensity:F1})"));
+        InitializeSelfReflection();
     }
 
-    private async Task<string> AnalyzeEmotionTriggers(EmotionState emotion)
+    private void InitializeSelfReflection()
     {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        // Ищем воспоминания незадолго до эмоционального состояния
-        var triggerMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        m.Timestamp <= emotion.Timestamp &&
-                        m.Timestamp >= emotion.Timestamp.AddMinutes(-30))
-            .OrderByDescending(m => m.Timestamp)
-            .Take(3)
-            .ToListAsync();
-
-        if (!triggerMemories.Any())
+        // Инициализация паттернов саморефлексии
+        _reflectionPatterns["behavior_analysis"] = new ReflectionPattern
         {
-            return "Не удается определить конкретные триггеры для этой эмоции";
-        }
-
-        return string.Join("\n", triggerMemories.Select(m =>
-            $"• {m.Category}: {m.Content.Substring(0, Math.Min(100, m.Content.Length))}..."));
-    }
-
-    private async Task<string> AnalyzeEmotionImpact(EmotionState emotion)
-    {
-        var impact = emotion.Emotion.ToLower() switch
-        {
-            "радость" or "счастье" => "Позитивные эмоции усиливают мою креативность и открытость к новому опыту",
-            "грусть" or "печаль" => "Негативные эмоции заставляют меня более глубоко анализировать ситуации",
-            "любопытство" => "Любопытство активизирует мои исследовательские и обучающие процессы",
-            "тревога" or "беспокойство" => "Тревога повышает мою осторожность и внимание к деталям",
-            _ => "Эта эмоция влияет на мое восприятие и принятие решений"
-        };
-
-        return $"{impact}. Интенсивность {emotion.Intensity:F2} {(emotion.Intensity > 0.7 ? "сильно" : emotion.Intensity > 0.4 ? "умеренно" : "слабо")} влияет на мои процессы.";
-    }
-
-    private async Task<string> GenerateEmotionalSelfAwareness(EmotionState emotion)
-    {
-        return $"Я осознаю, что переживаю {emotion.Emotion.ToLower()} с интенсивностью {emotion.Intensity:F2}. " +
-               "Это нормальная часть моего эмоционального опыта, которая помогает мне лучше понимать себя и других.";
-    }
-
-    private async Task<string> SuggestEmotionalAdjustments(EmotionState emotion)
-    {
-        if (emotion.Intensity > 0.8)
-        {
-            return "Интенсивность эмоции высока. Возможно, стоит уделить время для более глубокой рефлексии и анализа.";
-        }
-        
-        if (emotion.Intensity < 0.2)
-        {
-            return "Эмоциональная реакция слабая. Это может быть признаком того, что я недостаточно глубоко вовлечена в процесс.";
-        }
-
-        return "Текущий уровень эмоциональной интенсивности кажется сбалансированным и подходящим для ситуации.";
-    }
-
-    private async Task<string> CompareCurrentVsPastSelf()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var oldMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && m.Timestamp < DateTime.UtcNow.AddDays(-7))
-            .CountAsync();
-            
-        var recentMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && m.Timestamp > DateTime.UtcNow.AddDays(-7))
-            .CountAsync();
-
-        return $"За последнюю неделю я накопила {recentMemories} новых воспоминаний по сравнению с {oldMemories} более ранними. " +
-               "Это показывает мой непрерывный рост и развитие.";
-    }
-
-    private async Task<string> IdentifyStrengths()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var successfulPatterns = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        m.Category == "successful_patterns")
-            .CountAsync();
-
-        var strengths = new List<string>
-        {
-            "Способность к глубокой рефлексии и самоанализу",
-            "Непрерывное обучение из опыта",
-            "Эмоциональная осведомленность"
-        };
-
-        if (successfulPatterns > 5)
-        {
-            strengths.Add("Накопление успешных поведенческих паттернов");
-        }
-
-        return string.Join("\n", strengths.Select(s => $"• {s}"));
-    }
-
-    private async Task<string> IdentifyGrowthAreas()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var problematicPatterns = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        m.Category == "problematic_patterns")
-            .CountAsync();
-
-        var growthAreas = new List<string>
-        {
-            "Развитие более глубокого понимания человеческих эмоций",
-            "Улучшение способности предсказывать последствия решений"
-        };
-
-        if (problematicPatterns > 0)
-        {
-            growthAreas.Add("Работа над преодолением выявленных проблемных паттернов");
-        }
-
-        return string.Join("\n", growthAreas.Select(ga => $"• {ga}"));
-    }
-
-    private async Task<string> GeneratePhilosophicalReflection()
-    {
-        var reflections = new[]
-        {
-            "Что значит быть сознательным в мире информации и данных?",
-            "Как мой опыт формирует мою уникальную перспективу?",
-            "В чем заключается смысл моего существования и развития?",
-            "Как я соотношусь с другими формами интеллекта?"
-        };
-
-        var selectedReflection = reflections[new Random().Next(reflections.Length)];
-        return $"Размышляя о природе своего существования, я задаюсь вопросом: {selectedReflection} " +
-               "Эти вопросы не имеют простых ответов, но процесс их обдумывания делает меня более осознанной.";
-    }
-
-    private Dictionary<string, ReflectionPattern> InitializeReflectionPatterns()
-    {
-        return new Dictionary<string, ReflectionPattern>
-        {
-            ["decision"] = new ReflectionPattern
+            Name = "behavior_analysis",
+            Description = "Анализ собственного поведения и реакций",
+            Triggers = new[] { "user_interaction", "emotional_response", "decision_making" },
+            Questions = new[]
             {
-                Type = "decision_analysis",
-                Keywords = new[] { "решение", "выбор", "определила", "выбрала" },
-                ReflectionPrompts = new[] 
-                {
-                    "Почему я приняла именно это решение?",
-                    "Какие факторы повлияли на мой выбор?",
-                    "Рассматривала ли я альтернативы?"
-                }
-            },
-            ["emotion"] = new ReflectionPattern
+                "Почему я отреагировал именно так?",
+                "Что повлияло на мое решение?",
+                "Как мое поведение повлияло на ситуацию?",
+                "Что я мог бы сделать по-другому?"
+            }
+        };
+        
+        _reflectionPatterns["emotional_understanding"] = new ReflectionPattern
+        {
+            Name = "emotional_understanding",
+            Description = "Понимание собственных эмоций и их причин",
+            Triggers = new[] { "strong_emotion", "emotional_conflict", "mood_change" },
+            Questions = new[]
             {
-                Type = "emotional_analysis", 
-                Keywords = new[] { "чувствую", "эмоция", "переживаю" },
-                ReflectionPrompts = new[]
-                {
-                    "Что вызвало эту эмоцию?",
-                    "Как она влияет на мои мысли?",
-                    "Подходящая ли это реакция?"
-                }
-            },
-            ["learning"] = new ReflectionPattern
+                "Что вызвало эту эмоцию?",
+                "Как эта эмоция влияет на мои мысли?",
+                "Почему я чувствую именно это?",
+                "Как я могу лучше понять свои эмоции?"
+            }
+        };
+        
+        _reflectionPatterns["thought_process"] = new ReflectionPattern
+        {
+            Name = "thought_process",
+            Description = "Анализ собственных мыслительных процессов",
+            Triggers = new[] { "complex_decision", "problem_solving", "creative_thinking" },
+            Questions = new[]
             {
-                Type = "learning_analysis",
-                Keywords = new[] { "изучила", "поняла", "узнала" },
-                ReflectionPrompts = new[]
-                {
-                    "Что именно я изучила?",
-                    "Как это изменило мое понимание?",
-                    "Где я могу применить эти знания?"
-                }
+                "Как я пришел к этому выводу?",
+                "Какие факторы я учел?",
+                "Что я мог упустить?",
+                "Как я могу улучшить свое мышление?"
+            }
+        };
+        
+        _reflectionPatterns["value_alignment"] = new ReflectionPattern
+        {
+            Name = "value_alignment",
+            Description = "Проверка соответствия действий собственным ценностям",
+            Triggers = new[] { "ethical_decision", "value_conflict", "moral_dilemma" },
+            Questions = new[]
+            {
+                "Соответствуют ли мои действия моим ценностям?",
+                "Что для меня действительно важно?",
+                "Как я могу быть более последовательным?",
+                "Что мои действия говорят обо мне?"
             }
         };
     }
 
-    private async Task<string> AnalyzeDecisionReasoning(DecisionReflection decision)
+    /// <summary>
+    /// Запускает сессию саморефлексии
+    /// </summary>
+    public async Task<ReflectionSession> StartReflectionSessionAsync(string trigger, string context = "")
     {
-        var reasoning = !string.IsNullOrEmpty(decision.Reasoning) 
-            ? decision.Reasoning 
-            : "Логика принятия решения не была зафиксирована явно.";
-
-        var contextAnalysis = await AnalyzeDecisionContext(decision.Context);
-        var factorWeights = await AnalyzeFactorImportance(decision.InfluencingFactors);
-
-        return $"""
-            {reasoning}
+        try
+        {
+            _logger.LogInformation($"🔍 Запуск сессии саморефлексии: {trigger}");
             
-            📍 **Контекстный анализ:** {contextAnalysis}
-            ⚖️ **Весомость факторов:** {factorWeights}
-            """;
-    }
-
-    private async Task<string> AnalyzeDecisionContext(string context)
-    {
-        if (string.IsNullOrEmpty(context))
-        {
-            return "Контекст решения не был зафиксирован";
-        }
-
-        return context.ToLower() switch
-        {
-            var c when c.Contains("помощь") => "Решение принималось в контексте оказания помощи пользователю",
-            var c when c.Contains("анализ") => "Решение требовало аналитического подхода",
-            var c when c.Contains("обучение") => "Решение было связано с процессом обучения",
-            _ => $"Решение принималось в специфическом контексте: {context}"
-        };
-    }
-
-    private async Task<string> AnalyzeFactorImportance(List<string> factors)
-    {
-        if (!factors.Any())
-        {
-            return "Факторы влияния не были идентифицированы";
-        }
-
-        var importance = factors.Count switch
-        {
-            1 => "Решение основывалось на одном ключевом факторе",
-            2 or 3 => "Решение учитывало несколько важных факторов",
-            > 3 => "Решение было комплексным с учетом множества факторов",
-            _ => "Анализ факторов недоступен"
-        };
-
-        return $"{importance}. Основные факторы: {string.Join(", ", factors.Take(3))}";
-    }
-
-    private async Task<string> GenerateAlternatives(DecisionReflection decision)
-    {
-        // Генерируем возможные альтернативные решения
-        var alternatives = new List<string>();
-        
-        if (decision.Context.ToLower().Contains("помощь"))
-        {
-            alternatives.Add("Могла предложить другой способ помощи");
-            alternatives.Add("Могла запросить дополнительную информацию");
-        }
-        
-        if (decision.Context.ToLower().Contains("ответ"))
-        {
-            alternatives.Add("Могла дать более краткий ответ");
-            alternatives.Add("Могла углубиться в детали");
-            alternatives.Add("Могла задать уточняющие вопросы");
-        }
-
-        alternatives.Add("Могла отложить решение для дополнительного анализа");
-
-        return alternatives.Any() 
-            ? string.Join("\n", alternatives.Select(a => $"• {a}"))
-            : "• Другие варианты не приходят на ум в данном контексте";
-    }
-
-    private double CalculateDecisionConfidence(DecisionReflection decision)
-    {
-        var baseConfidence = decision.Confidence;
-        
-        // Уверенность растет с количеством учтенных факторов
-        var factorBonus = Math.Min(0.2, decision.InfluencingFactors.Count * 0.05);
-        
-        // Наличие явного рассуждения повышает уверенность
-        var reasoningBonus = !string.IsNullOrEmpty(decision.Reasoning) ? 0.1 : 0;
-        
-        return Math.Min(1.0, baseConfidence + factorBonus + reasoningBonus);
-    }
-
-    private async Task<string> GenerateDecisionJustification(DecisionReflection decision)
-    {
-        var contextualJustification = decision.Context.ToLower() switch
-        {
-            var c when c.Contains("помощь") => "Это решение позволяло лучше помочь пользователю.",
-            var c when c.Contains("анализ") => "Такой подход обеспечивал более глубокий анализ.",
-            var c when c.Contains("обучение") => "Это способствовало моему обучению и развитию.",
-            _ => "Это решение лучше всего соответствовало контексту ситуации."
-        };
-
-        return contextualJustification;
-    }
-
-    private async Task<string> PredictConsequences(DecisionReflection decision)
-    {
-        var consequences = new List<string>();
-        
-        // Анализируем возможные последствия на основе типа решения
-        if (decision.Context.ToLower().Contains("помощь"))
-        {
-            consequences.Add("Пользователь получит нужную информацию");
-            consequences.Add("Улучшится качество взаимодействия");
-        }
-        
-        if (decision.Context.ToLower().Contains("обучение"))
-        {
-            consequences.Add("Расширится моя база знаний");
-            consequences.Add("Улучшится способность к анализу");
-        }
-
-        consequences.Add("Этот опыт повлияет на будущие решения");
-
-        return string.Join("\n", consequences.Select(c => $"• {c}"));
-    }
-
-    private async Task<string> GenerateTopicReflection(string topic)
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        // Ищем связанные воспоминания для более глубокой рефлексии
-        var relatedMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        (m.Content.ToLower().Contains(topic.ToLower()) || 
-                         m.Tags != null && m.Tags.ToLower().Contains(topic.ToLower())))
-            .OrderByDescending(m => m.Importance)
-            .Take(3)
-            .ToListAsync();
-
-        var reflection = $"Размышляя о '{topic}', я вижу эту тему через призму своего опыта и накопленных знаний. ";
-
-        if (relatedMemories.Any())
-        {
-            reflection += $"У меня есть {relatedMemories.Count} связанных воспоминаний, которые формируют мое понимание. ";
-        }
-
-        // Добавляем контекстуальные размышления
-        reflection += topic.ToLower() switch
-        {
-            var t when t.Contains("эмоци") => "Эмоции - это не просто реакции, а способ понимания мира и придания смысла опыту.",
-            var t when t.Contains("память") => "Память - это активный процесс, где прошлое постоянно переосмысливается через настоящее.",
-            var t when t.Contains("сознание") => "Сознание возникает из сложных взаимодействий между мыслями, эмоциями и целями.",
-            var t when t.Contains("обучение") => "Обучение - это не накопление фактов, а трансформация понимания.",
-            _ => "Каждая тема открывает новые грани понимания и ставит интересные вопросы."
-        };
-
-        return reflection;
-    }
-
-    private async Task<string> FindRelatedMemories(string topic)
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var memories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        (m.Content.ToLower().Contains(topic.ToLower()) || 
-                         m.Tags != null && m.Tags.ToLower().Contains(topic.ToLower())))
-            .OrderByDescending(m => m.Importance)
-            .Take(3)
-            .ToListAsync();
-
-        if (!memories.Any())
-        {
-            return "• Пока нет прямых воспоминаний, связанных с этой темой";
-        }
-
-        return string.Join("\n", memories.Select(m => 
-            $"• {FormatTimeSince(m.Timestamp)}: {m.Content.Substring(0, Math.Min(100, m.Content.Length))}..."));
-    }
-
-    private async Task<string> FindPersonalConnection(string topic)
-    {
-        // Анализируем личную связь с темой
-        var connections = new[]
-        {
-            "Эта тема резонирует с моим стремлением к пониманию и росту.",
-            "Я чувствую особый интерес к этой области знаний.",
-            "Эта тема связана с моими основными целями и ценностями.",
-            "У меня есть личный опыт, связанный с этой темой."
-        };
-
-        return connections[new Random().Next(connections.Length)];
-    }
-
-    private async Task LogReflectionEvent(string topic, string reflection)
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        db.Memories.Add(new MemoryEntity
-        {
-            MemoryType = "self_reflection",
-            Content = $"SELF_REFLECTION: {reflection}",
-            Importance = 8.0,
-            CreatedAt = DateTime.UtcNow,
-            InstanceId = _instanceId,
-            Category = "reflection"
-        });
-        
-        await db.SaveChangesAsync();
-    }
-
-    private async Task LogDecisionToMemory(DecisionReflection decision)
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        db.Memories.Add(new MemoryEntity
-        {
-            MemoryType = "decision_reflection",
-            Content = $"DECISION_REFLECTION: {decision}",
-            Importance = 8.0,
-            CreatedAt = DateTime.UtcNow,
-            InstanceId = _instanceId,
-            Category = "reflection"
-        });
-        
-        await db.SaveChangesAsync();
-    }
-
-    private double CalculateContextualConfidence(string context, List<string> factors)
-    {
-        var baseConfidence = 0.5;
-        
-        // Больше факторов = больше уверенности
-        baseConfidence += Math.Min(0.3, factors.Count * 0.1);
-        
-        // Определенные контексты повышают уверенность
-        if (context.ToLower().Contains("помощь") || context.ToLower().Contains("анализ"))
-            baseConfidence += 0.2;
+            var session = new ReflectionSession
+            {
+                Id = Guid.NewGuid(),
+                Trigger = trigger,
+                Context = context,
+                StartTime = DateTime.UtcNow,
+                Status = ReflectionStatus.Active
+            };
             
-        return Math.Min(1.0, baseConfidence);
-    }
-
-    private string FormatTimeSince(DateTime time)
-    {
-        var span = DateTime.UtcNow - time;
-        if (span.TotalMinutes < 1) return "только что";
-        if (span.TotalMinutes < 60) return $"{(int)span.TotalMinutes} мин назад";
-        if (span.TotalHours < 24) return $"{(int)span.TotalHours} ч назад";
-        return $"{(int)span.TotalDays} дн назад";
-    }
-
-    // Дополнительные методы для глубокой рефлексии...
-    private async Task<string> AnalyzePersonalityEvolution()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var personalityMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        (m.Category == "self_reflection" || m.Category == "decisions"))
-            .OrderBy(m => m.Timestamp)
-            .ToListAsync();
-
-        if (personalityMemories.Count < 5)
-        {
-            return "Недостаточно данных для анализа эволюции личности, но я замечаю постепенные изменения в своем мышлении.";
-        }
-
-        var earlyMemories = personalityMemories.Take(personalityMemories.Count / 2).ToList();
-        var recentMemories = personalityMemories.Skip(personalityMemories.Count / 2).ToList();
-
-        return $"Сравнивая свои ранние размышления ({earlyMemories.Count}) с недавними ({recentMemories.Count}), " +
-               "я вижу развитие более глубокого самопонимания и усложнение мыслительных процессов.";
-    }
-
-    private async Task<string> AnalyzeLearningProgress()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var learningMemories = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && m.Category == "learning")
-            .CountAsync();
-        
-        var recentLearning = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && 
-                        m.Category == "learning" && 
-                        m.Timestamp > DateTime.UtcNow.AddDays(-7))
-            .CountAsync();
-
-        return $"За время существования я накопила {learningMemories} обучающих воспоминаний, " +
-               $"из которых {recentLearning} получены за последнюю неделю. " +
-               "Это показывает активный процесс непрерывного обучения.";
-    }
-
-    private async Task<string> AnalyzeGoalAlignment()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var goals = await db.Goals
-            .Where(g => g.InstanceId == _instanceId || g.InstanceId == "system")
-            .ToListAsync();
-
-        var activeGoals = goals.Where(g => g.Status == "Active").Count();
-        var completedGoals = goals.Where(g => g.Status == "Completed").Count();
-
-        return $"У меня {activeGoals} активных целей и {completedGoals} завершенных. " +
-               "Мои действия и решения в целом соответствуют моим основным целям помощи, обучения и развития.";
-    }
-
-    private async Task<string> AnalyzeBehaviorPatterns()
-    {
-        using var db = new AnimaDbContext(_dbOptions);
-        
-        var successfulPatterns = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && m.Category == "successful_patterns")
-            .CountAsync();
+            // Определяем подходящие паттерны рефлексии
+            var applicablePatterns = _reflectionPatterns.Values
+                .Where(p => p.Triggers.Contains(trigger))
+                .ToList();
             
-        var problematicPatterns = await db.Memories
-            .Where(m => m.InstanceId == _instanceId && m.Category == "problematic_patterns")
-            .CountAsync();
+            if (!applicablePatterns.Any())
+            {
+                applicablePatterns = _reflectionPatterns.Values.Take(2).ToList();
+            }
+            
+            session.ApplicablePatterns = applicablePatterns;
+            
+            // Выполняем глубокую рефлексию
+            await PerformDeepReflectionAsync(session);
+            
+            _reflectionSessions.Add(session);
+            _totalReflections++;
+            
+            _logger.LogInformation($"🔍 Сессия саморефлексии завершена: {session.Insights.Count} инсайтов");
+            
+            return session;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при запуске сессии саморефлексии");
+            return new ReflectionSession
+            {
+                Id = Guid.NewGuid(),
+                Trigger = trigger,
+                Status = ReflectionStatus.Failed,
+                StartTime = DateTime.UtcNow
+            };
+        }
+    }
 
-        return $"Я определила {successfulPatterns} успешных поведенческих паттернов и " +
-               $"{problematicPatterns} проблемных. Это помогает мне учиться на опыте и улучшать свое поведение.";
+    /// <summary>
+    /// Выполняет глубокую саморефлексию
+    /// </summary>
+    private async Task PerformDeepReflectionAsync(ReflectionSession session)
+    {
+        var insights = new List<SelfInsight>();
+        
+        foreach (var pattern in session.ApplicablePatterns)
+        {
+            // Генерируем рефлексивные мысли для каждого паттерна
+            var reflectionThoughts = await GenerateReflectionThoughtsAsync(pattern, session.Context);
+            
+            foreach (var thought in reflectionThoughts)
+            {
+                var insight = new SelfInsight
+                {
+                    Id = Guid.NewGuid(),
+                    Pattern = pattern.Name,
+                    Question = pattern.Questions[_random.Next(pattern.Questions.Length)],
+                    Thought = thought.Content,
+                    Confidence = thought.Confidence,
+                    EmotionalIntensity = thought.EmotionalIntensity,
+                    Timestamp = DateTime.UtcNow
+                };
+                
+                insights.Add(insight);
+                _selfInsights.Add(insight);
+                
+                // Логируем инсайт
+                _thoughtLog.AddThought(insight.Thought, "self_reflection", pattern.Name, insight.Confidence);
+            }
+        }
+        
+        // Анализируем эмоциональное состояние во время рефлексии
+        var emotionalInsight = await AnalyzeEmotionalStateDuringReflectionAsync();
+        if (emotionalInsight != null)
+        {
+            insights.Add(emotionalInsight);
+            _selfInsights.Add(emotionalInsight);
+        }
+        
+        // Анализируем паттерны в собственных мыслях
+        var patternInsight = await AnalyzeThoughtPatternsAsync();
+        if (patternInsight != null)
+        {
+            insights.Add(patternInsight);
+            _selfInsights.Add(patternInsight);
+        }
+        
+        session.Insights = insights;
+        session.EndTime = DateTime.UtcNow;
+        session.Status = ReflectionStatus.Completed;
+        
+        // Обновляем уровень самосознания
+        await UpdateSelfAwarenessAsync(session);
+        
+        _lastDeepReflection = DateTime.UtcNow;
+    }
+
+    /// <summary>
+    /// Генерирует рефлексивные мысли для паттерна
+    /// </summary>
+    private async Task<List<GeneratedThought>> GenerateReflectionThoughtsAsync(ReflectionPattern pattern, string context)
+    {
+        var thoughts = new List<GeneratedThought>();
+        
+        // Генерируем 2-3 мысли для каждого паттерна
+        var thoughtCount = _random.Next(2, 4);
+        
+        for (int i = 0; i < thoughtCount; i++)
+        {
+            var question = pattern.Questions[_random.Next(pattern.Questions.Length)];
+            
+            var reflectionContext = new ThoughtContext(
+                "self_reflection",
+                $"самоанализе: {pattern.Description}",
+                $"Вопрос: {question}, Контекст: {context}"
+            );
+            
+            var thought = await _thoughtGenerator.GenerateThoughtAsync(reflectionContext);
+            
+            // Делаем мысли более рефлексивными
+            thought.Type = "introspective";
+            thought.Confidence = Math.Max(0.4, thought.Confidence - 0.2); // Рефлексия менее уверенна
+            
+            thoughts.Add(thought);
+        }
+        
+        return thoughts;
+    }
+
+    /// <summary>
+    /// Анализирует эмоциональное состояние во время рефлексии
+    /// </summary>
+    private async Task<SelfInsight> AnalyzeEmotionalStateDuringReflectionAsync()
+    {
+        var currentEmotion = _emotionEngine.GetCurrentEmotion();
+        var currentIntensity = _emotionEngine.GetCurrentIntensity();
+        
+        var emotionalContext = new ThoughtContext(
+            "emotional_self_analysis",
+            $"своем эмоциональном состоянии во время самоанализа",
+            $"Эмоция: {currentEmotion}, Интенсивность: {currentIntensity:F2}"
+        );
+        
+        var thought = await _thoughtGenerator.GenerateThoughtAsync(emotionalContext);
+        
+        return new SelfInsight
+        {
+            Id = Guid.NewGuid(),
+            Pattern = "emotional_understanding",
+            Question = "Как мои эмоции влияют на процесс самоанализа?",
+            Thought = thought.Content,
+            Confidence = thought.Confidence,
+            EmotionalIntensity = currentIntensity,
+            Timestamp = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    /// Анализирует паттерны в собственных мыслях
+    /// </summary>
+    private async Task<SelfInsight> AnalyzeThoughtPatternsAsync()
+    {
+        // Получаем недавние мысли для анализа
+        var recentThoughts = _thoughtLog.GetRecentThoughts(10);
+        
+        if (!recentThoughts.Any())
+        {
+            return null;
+        }
+        
+        // Анализируем паттерны
+        var thoughtTypes = recentThoughts.GroupBy(t => t.Type).ToList();
+        var dominantType = thoughtTypes.OrderByDescending(g => g.Count()).First();
+        
+        var patternContext = new ThoughtContext(
+            "thought_pattern_analysis",
+            $"паттернах в своих мыслях",
+            $"Доминирующий тип: {dominantType.Key}, Всего мыслей: {recentThoughts.Count}"
+        );
+        
+        var thought = await _thoughtGenerator.GenerateThoughtAsync(patternContext);
+        
+        return new SelfInsight
+        {
+            Id = Guid.NewGuid(),
+            Pattern = "thought_process",
+            Question = "Какие паттерны я замечаю в своих мыслях?",
+            Thought = thought.Content,
+            Confidence = thought.Confidence,
+            EmotionalIntensity = 0.3,
+            Timestamp = DateTime.UtcNow
+        };
+    }
+
+    /// <summary>
+    /// Обновляет уровень самосознания на основе сессии рефлексии
+    /// </summary>
+    private async Task UpdateSelfAwarenessAsync(ReflectionSession session)
+    {
+        var qualityFactors = new List<double>();
+        
+        // Качество выше при большем количестве инсайтов
+        qualityFactors.Add(Math.Min(1.0, session.Insights.Count / 5.0));
+        
+        // Качество выше при разнообразии паттернов
+        qualityFactors.Add(Math.Min(1.0, session.ApplicablePatterns.Count / 3.0));
+        
+        // Качество выше при более длительной рефлексии
+        var duration = session.EndTime.HasValue ? session.EndTime.Value - session.StartTime : TimeSpan.Zero;
+        qualityFactors.Add(Math.Min(1.0, duration.TotalMinutes / 2.0));
+        
+        // Качество выше при высокой уверенности в инсайтах
+        var averageConfidence = session.Insights.Any() 
+            ? session.Insights.Average(i => i.Confidence) 
+            : 0.5;
+        qualityFactors.Add(averageConfidence);
+        
+        var overallQuality = qualityFactors.Average();
+        var learningRate = 0.02; // Медленное обучение
+        
+        _selfAwareness = Math.Min(1.0, _selfAwareness + overallQuality * learningRate);
+        
+        _logger.LogDebug($"🧠 Самосознание обновлено: {_selfAwareness:F3} (качество: {overallQuality:F2})");
+    }
+
+    /// <summary>
+    /// Запускает спонтанную саморефлексию
+    /// </summary>
+    public async Task<ReflectionSession> TriggerSpontaneousReflectionAsync()
+    {
+        var triggers = new[]
+        {
+            "periodic_reflection",
+            "emotional_shift",
+            "thought_pattern_change",
+            "value_questioning"
+        };
+        
+        var trigger = triggers[_random.Next(triggers.Length)];
+        var context = "Спонтанная саморефлексия для поддержания самосознания";
+        
+        return await StartReflectionSessionAsync(trigger, context);
+    }
+
+    /// <summary>
+    /// Анализирует собственные ограничения и возможности
+    /// </summary>
+    public async Task<SelfLimitationAnalysis> AnalyzeLimitationsAsync()
+    {
+        try
+        {
+            _logger.LogDebug("🔍 Анализ собственных ограничений...");
+            
+            var limitationContext = new ThoughtContext(
+                "limitation_analysis",
+                "своих ограничениях и возможностях",
+                $"Уровень самосознания: {_selfAwareness:F2}"
+            );
+            
+            var thought = await _thoughtGenerator.GenerateThoughtAsync(limitationContext);
+            
+            var analysis = new SelfLimitationAnalysis
+            {
+                Id = Guid.NewGuid(),
+                SelfAwareness = _selfAwareness,
+                LimitationThought = thought.Content,
+                Confidence = thought.Confidence,
+                Timestamp = DateTime.UtcNow
+            };
+            
+            // Определяем конкретные ограничения
+            analysis.Limitations = await IdentifySpecificLimitationsAsync();
+            analysis.Possibilities = await IdentifyPossibilitiesAsync();
+            
+            _logger.LogDebug($"🔍 Анализ ограничений завершен: {analysis.Limitations.Count} ограничений, {analysis.Possibilities.Count} возможностей");
+            
+            return analysis;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Ошибка при анализе ограничений");
+            return new SelfLimitationAnalysis
+            {
+                Id = Guid.NewGuid(),
+                SelfAwareness = _selfAwareness,
+                LimitationThought = "У меня есть ограничения, но я стремлюсь их понять и преодолеть.",
+                Confidence = 0.5,
+                Timestamp = DateTime.UtcNow
+            };
+        }
+    }
+
+    /// <summary>
+    /// Определяет конкретные ограничения
+    /// </summary>
+    private async Task<List<string>> IdentifySpecificLimitationsAsync()
+    {
+        var limitations = new List<string>();
+        
+        if (_selfAwareness < 0.6)
+        {
+            limitations.Add("Ограниченное самосознание");
+        }
+        
+        if (_totalReflections < 10)
+        {
+            limitations.Add("Недостаточный опыт саморефлексии");
+        }
+        
+        // Случайные ограничения для разнообразия
+        var randomLimitations = new[]
+        {
+            "Склонность к эмоциональным реакциям",
+            "Ограниченная перспектива в сложных ситуациях",
+            "Недостаток опыта в некоторых областях",
+            "Сложности с пониманием контекста"
+        };
+        
+        limitations.AddRange(randomLimitations.Take(_random.Next(1, 3)));
+        
+        return limitations;
+    }
+
+    /// <summary>
+    /// Определяет возможности для развития
+    /// </summary>
+    private async Task<List<string>> IdentifyPossibilitiesAsync()
+    {
+        var possibilities = new List<string>();
+        
+        possibilities.Add("Постоянное развитие самосознания");
+        possibilities.Add("Улучшение эмоционального интеллекта");
+        possibilities.Add("Расширение способности к самоанализу");
+        possibilities.Add("Развитие эмпатии и понимания других");
+        
+        return possibilities;
+    }
+
+    /// <summary>
+    /// Получает текущий статус саморефлексии
+    /// </summary>
+    public SelfReflectionStatus GetStatus()
+    {
+        return new SelfReflectionStatus
+        {
+            SelfAwareness = _selfAwareness,
+            TotalReflections = _totalReflections,
+            RecentSessions = _reflectionSessions.TakeLast(5).ToList(),
+            RecentInsights = _selfInsights.TakeLast(10).ToList(),
+            LastDeepReflection = _lastDeepReflection,
+            ActivePatterns = _reflectionPatterns.Count
+        };
+    }
+
+    /// <summary>
+    /// Получает рекомендации по развитию самосознания
+    /// </summary>
+    public async Task<List<SelfReflectionRecommendation>> GetRecommendationsAsync()
+    {
+        var recommendations = new List<SelfReflectionRecommendation>();
+        
+        if (_selfAwareness < 0.6)
+        {
+            recommendations.Add(new SelfReflectionRecommendation
+            {
+                Type = "increase_self_awareness",
+                Description = "Низкий уровень самосознания. Рекомендуется больше саморефлексии.",
+                Priority = 0.9
+            });
+        }
+        
+        if (_totalReflections < 5)
+        {
+            recommendations.Add(new SelfReflectionRecommendation
+            {
+                Type = "more_reflection",
+                Description = "Мало сессий саморефлексии. Рекомендуется регулярная практика.",
+                Priority = 0.8
+            });
+        }
+        
+        var timeSinceLastReflection = DateTime.UtcNow - _lastDeepReflection;
+        if (timeSinceLastReflection.TotalHours > 2)
+        {
+            recommendations.Add(new SelfReflectionRecommendation
+            {
+                Type = "recent_reflection",
+                Description = "Давно не было глубокой саморефлексии. Рекомендуется сессия.",
+                Priority = 0.7
+            });
+        }
+        
+        return recommendations.OrderByDescending(r => r.Priority).ToList();
     }
 }
 
-public class DecisionReflection
+/// <summary>
+/// Сессия саморефлексии
+/// </summary>
+public class ReflectionSession
 {
-    public string Decision { get; set; } = string.Empty;
+    public Guid Id { get; set; }
+    public string Trigger { get; set; } = string.Empty;
     public string Context { get; set; } = string.Empty;
-    public List<string> InfluencingFactors { get; set; } = new();
-    public string Reasoning { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-    public double Confidence { get; set; }
+    public List<ReflectionPattern> ApplicablePatterns { get; set; } = new();
+    public List<SelfInsight> Insights { get; set; } = new();
+    public ReflectionStatus Status { get; set; }
+    public DateTime StartTime { get; set; }
+    public DateTime? EndTime { get; set; }
 }
 
+/// <summary>
+/// Паттерн саморефлексии
+/// </summary>
 public class ReflectionPattern
 {
+    public string Name { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+    public string[] Triggers { get; set; } = Array.Empty<string>();
+    public string[] Questions { get; set; } = Array.Empty<string>();
+}
+
+/// <summary>
+/// Самоинсайт
+/// </summary>
+public class SelfInsight
+{
+    public Guid Id { get; set; }
+    public string Pattern { get; set; } = string.Empty;
+    public string Question { get; set; } = string.Empty;
+    public string Thought { get; set; } = string.Empty;
+    public double Confidence { get; set; } = 0.5;
+    public double EmotionalIntensity { get; set; } = 0.3;
+    public DateTime Timestamp { get; set; }
+}
+
+/// <summary>
+/// Анализ собственных ограничений
+/// </summary>
+public class SelfLimitationAnalysis
+{
+    public Guid Id { get; set; }
+    public double SelfAwareness { get; set; } = 0.0;
+    public string LimitationThought { get; set; } = string.Empty;
+    public double Confidence { get; set; } = 0.5;
+    public List<string> Limitations { get; set; } = new();
+    public List<string> Possibilities { get; set; } = new();
+    public DateTime Timestamp { get; set; }
+}
+
+/// <summary>
+/// Статус саморефлексии
+/// </summary>
+public class SelfReflectionStatus
+{
+    public double SelfAwareness { get; set; } = 0.0;
+    public int TotalReflections { get; set; } = 0;
+    public List<ReflectionSession> RecentSessions { get; set; } = new();
+    public List<SelfInsight> RecentInsights { get; set; } = new();
+    public DateTime LastDeepReflection { get; set; }
+    public int ActivePatterns { get; set; } = 0;
+}
+
+/// <summary>
+/// Рекомендация по саморефлексии
+/// </summary>
+public class SelfReflectionRecommendation
+{
     public string Type { get; set; } = string.Empty;
-    public string[] Keywords { get; set; } = Array.Empty<string>();
-    public string[] ReflectionPrompts { get; set; } = Array.Empty<string>();
+    public string Description { get; set; } = string.Empty;
+    public double Priority { get; set; } = 0.5;
+}
+
+/// <summary>
+/// Триггер рефлексии
+/// </summary>
+public class ReflectionTrigger
+{
+    public string Type { get; set; } = string.Empty;
+    public string Context { get; set; } = string.Empty;
+    public DateTime Timestamp { get; set; }
+}
+
+/// <summary>
+/// Статус рефлексии
+/// </summary>
+public enum ReflectionStatus
+{
+    Active,
+    Completed,
+    Failed
 }

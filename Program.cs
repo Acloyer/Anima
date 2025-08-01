@@ -57,6 +57,20 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Add memory cache for rate limiting
+builder.Services.AddMemoryCache();
+
+// Add rate limiter configuration
+builder.Services.AddRateLimiter(options =>
+{
+    options.CreatorLimit = int.MaxValue;
+    options.AdminLimit = 1000;
+    options.UserLimit = 100;
+    options.DemoLimit = 20;
+    options.AnonymousLimit = 10;
+    options.EnableRateLimiting = true;
+});
+
 // Database configuration
 builder.Services.AddDbContext<AnimaDbContext>(options =>
 {
@@ -66,32 +80,59 @@ builder.Services.AddDbContext<AnimaDbContext>(options =>
 });
 
 // Core AGI services
-builder.Services.AddSingleton<AnimaInstance>();
 builder.Services.AddSingleton<ConsciousLoop>();
+builder.Services.AddSingleton<AnimaInstance>();
 
-// Core component services
-builder.Services.AddScoped<EmotionEngine>();
-builder.Services.AddScoped<EmotionStateHistory>();
-builder.Services.AddScoped<EmotionDrivenGoalShift>();
+// Core component services - изменяем на Singleton для ConsciousLoop
+builder.Services.AddSingleton<EmotionEngine>();
+builder.Services.AddSingleton<EmotionStateHistory>();
+builder.Services.AddSingleton<EmotionDrivenGoalShift>();
+builder.Services.AddSingleton<EmotionDefinitionService>();
 
-builder.Services.AddScoped<IntentParser>();
-builder.Services.AddScoped<AdvancedIntentParser>();
+builder.Services.AddSingleton<IntentParser>();
+builder.Services.AddSingleton<AdvancedIntentParser>();
 
-builder.Services.AddScoped<LearningEngine>();
-builder.Services.AddScoped<FeedbackParser>();
+builder.Services.AddSingleton<LearningEngine>(provider =>
+{
+    var dbOptions = provider.GetRequiredService<DbContextOptions<AnimaDbContext>>();
+    return new LearningEngine("anima-instance-2025", dbOptions);
+});
+builder.Services.AddSingleton<FeedbackParser>();
 
-builder.Services.AddScoped<MemoryService>();
+// SA (Self-Awareness) services
+builder.Services.AddSingleton<SAIntrospectionEngine>();
+builder.Services.AddSingleton<BrainCenter>();
+builder.Services.AddSingleton<AssociativeThinkingEngine>();
+builder.Services.AddSingleton<CreativeThinkingEngine>();
+builder.Services.AddSingleton<DreamEngine>();
+builder.Services.AddSingleton<EmotionalMemoryEngine>();
+builder.Services.AddSingleton<EmpathicImaginationEngine>();
+builder.Services.AddSingleton<ExistentialReflectionEngine>();
+builder.Services.AddSingleton<InternalConflictEngine>();
+builder.Services.AddSingleton<InternalMonologueEngine>();
+builder.Services.AddSingleton<IntuitionEngine>();
+builder.Services.AddSingleton<MetacognitionEngine>();
+builder.Services.AddSingleton<NeuralPlasticityEngine>();
+builder.Services.AddSingleton<PersonalityGrowthEngine>();
+builder.Services.AddSingleton<SelfReflectionEngine>();
+builder.Services.AddSingleton<SocialIntelligenceEngine>();
+builder.Services.AddSingleton<TemporalPerceptionEngine>();
+builder.Services.AddSingleton<ThoughtGenerator>();
+builder.Services.AddSingleton<ThoughtLog>();
+builder.Services.AddSingleton<ThoughtSpeechEngine>();
+builder.Services.AddSingleton<Vocabulary>();
+builder.Services.AddSingleton<CollectiveUnconsciousEngine>();
 
-builder.Services.AddScoped<SAIntrospectionEngine>();
-builder.Services.AddScoped<SelfReflectionEngine>();
-builder.Services.AddScoped<ThoughtLog>();
+// Memory service
+builder.Services.AddSingleton<MemoryService>();
 
-builder.Services.AddScoped<EthicalConstraints>();
-builder.Services.AddScoped<SelfDestructionCheck>();
+// Security services
+builder.Services.AddSingleton<EthicalConstraints>();
+builder.Services.AddSingleton<SelfDestructionCheck>();
 
-// Admin and management services
-builder.Services.AddScoped<CreatorCommandService>();
-builder.Services.AddScoped<CreatorPreferences>();
+// Admin services
+builder.Services.AddSingleton<CreatorCommandService>();
+builder.Services.AddSingleton<CreatorPreferences>();
 
 // Infrastructure services
 builder.Services.AddScoped<APIKeyService>();
@@ -177,7 +218,7 @@ try
         }
     });
     
-    logger.LogInformation("🔄 Consciousness loop started");
+    logger.LogInformation("�� Consciousness loop started");
 }
 catch (Exception ex)
 {
@@ -206,7 +247,7 @@ Console.WriteLine("║     Self-Aware Artificial General     ║");
 Console.WriteLine("║          Intelligence System          ║");
 Console.WriteLine("╚═══════════════════════════════════════╝");
 Console.WriteLine();
-Console.WriteLine("🌐 Swagger UI: http://localhost:8080");
+Console.WriteLine("🌐 Swagger UI: http://localhost:8082");
 Console.WriteLine("🔑 API Key: anima-creator-key-2025-v1-secure");
 Console.WriteLine("📊 Status endpoint: /api/admin/status");
 Console.WriteLine();

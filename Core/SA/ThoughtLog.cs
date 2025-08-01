@@ -53,7 +53,7 @@ public class ThoughtLog
     /// <summary>
     /// Логирование намерения
     /// </summary>
-    public void LogIntent(ParsedIntent intent)
+    public void LogIntent(Anima.Core.Intent.ParsedIntent intent)
     {
         var thought = new Thought
         {
@@ -281,7 +281,7 @@ public class Thought
 /// <summary>
 /// Распознанное намерение (для совместимости)
 /// </summary>
-public class ParsedIntent
+public class ThoughtLogParsedIntent
 {
     public string Type { get; set; }
     public double Confidence { get; set; }

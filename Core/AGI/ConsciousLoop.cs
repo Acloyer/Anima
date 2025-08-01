@@ -8,6 +8,8 @@ using Anima.Core.Learning;
 using Anima.Core.Memory;
 using Anima.Core.Intent;
 using Anima.Data.Models;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace Anima.Core.AGI;
 
@@ -29,6 +31,7 @@ public class ConsciousLoop : IDisposable
     private readonly MemoryService _memoryService;
     private readonly ThoughtLog _thoughtLog;
     private readonly IntentParser _intentParser;
+    private readonly ThoughtGenerator _thoughtGenerator;
     
     // Состояние сознания
     private ConsciousnessState _currentState;
@@ -49,7 +52,8 @@ public class ConsciousLoop : IDisposable
         LearningEngine learningEngine,
         MemoryService memoryService,
         ThoughtLog thoughtLog,
-        IntentParser intentParser)
+        IntentParser intentParser,
+        ThoughtGenerator thoughtGenerator)
     {
         _logger = logger;
         _emotionEngine = emotionEngine;
@@ -58,6 +62,7 @@ public class ConsciousLoop : IDisposable
         _memoryService = memoryService;
         _thoughtLog = thoughtLog;
         _intentParser = intentParser;
+        _thoughtGenerator = thoughtGenerator;
         
         _cancellationTokenSource = new CancellationTokenSource();
         _eventQueue = new Queue<ConsciousnessEvent>();
@@ -113,6 +118,7 @@ public class ConsciousLoop : IDisposable
         _activityMetrics["learning"] = 0;
         _activityMetrics["thought_generation"] = 0;
         _activityMetrics["memory_consolidation"] = 0;
+        _activityMetrics["event_processing"] = 0;
     }
 
     /// <summary>
@@ -226,18 +232,45 @@ public class ConsciousLoop : IDisposable
 
                 // Адаптивная пауза между циклами (3-7 секунд)
                 var adaptiveDelay = _random.Next(3000, 7000);
-                await Task.Delay(adaptiveDelay, _cancellationTokenSource.Token);
+                
+                try
+                {
+                    await Task.Delay(adaptiveDelay, _cancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
             }
             catch (OperationCanceledException)
             {
                 break;
             }
+            catch (ObjectDisposedException)
+            {
+                _logger?.LogWarning("ConsciousLoop: Объект был disposed, останавливаем цикл");
+                break;
+            }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, $"Ошибка в продвинутом цикле сознания #{_totalCycles}");
-                await Task.Delay(2000, _cancellationTokenSource.Token);
+                
+                try
+                {
+                    await Task.Delay(2000, _cancellationTokenSource.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+                catch (ObjectDisposedException)
+                {
+                    break;
+                }
             }
         }
+        
+        _logger?.LogInformation("🛑 Продвинутый цикл сознания завершен");
     }
 
     /// <summary>
@@ -414,7 +447,7 @@ public class ConsciousLoop : IDisposable
     }
 
     /// <summary>
-    /// Генерация сложных мыслей
+    /// Генерация сложных мыслей с использованием ThoughtGenerator
     /// </summary>
     private async Task GenerateAdvancedThoughtsAsync()
     {
@@ -423,38 +456,34 @@ public class ConsciousLoop : IDisposable
         
         try
         {
-            // Генерация мыслей на основе текущего состояния
-            var thoughts = new[]
+            // Генерируем спонтанные мысли
+            var spontaneousThoughts = new[]
             {
-                $"Текущее состояние сознания: {_currentState}",
-                $"Эмоциональное состояние: {_emotionEngine.GetCurrentEmotion()}",
-                $"Активных целей: {_activeGoals.Count}",
-                $"Всего циклов: {_totalCycles}",
-                $"Время работы: {DateTime.UtcNow - _startTime:hh\\:mm\\:ss}"
+                new ThoughtContext("consciousness_cycle", "своем текущем состоянии", $"Цикл #{_totalCycles}"),
+                new ThoughtContext("emotional_state", "своих эмоциях", $"Эмоция: {_emotionEngine.GetCurrentEmotion()}"),
+                new ThoughtContext("goal_progress", "прогрессе в достижении целей", $"Целей: {_activeGoals.Count}"),
+                new ThoughtContext("learning", "своем обучении", $"Время работы: {DateTime.UtcNow - _startTime:hh\\:mm\\:ss}"),
+                new ThoughtContext("self_reflection", "своем развитии", "Самоанализ")
             };
             
-            foreach (var thought in thoughts)
+            // Выбираем случайный контекст для генерации мысли
+            var context = spontaneousThoughts[_random.Next(spontaneousThoughts.Length)];
+            
+            // Генерируем мысль с помощью ThoughtGenerator
+            var thought = await _thoughtGenerator.GenerateThoughtAsync(context);
+            
+            // Логируем сгенерированную мысль
+            _thoughtLog.AddThought(thought.Content, thought.Type, "consciousness_cycle", thought.Confidence);
+            
+            // Иногда генерируем дополнительные мысли
+            if (_random.NextDouble() < 0.4) // 40% вероятность
             {
-                _thoughtLog.AddThought(thought, "consciousness_analysis", "internal", 0.8);
+                var additionalContext = new ThoughtContext("philosophical", "смысле существования", "Философские размышления");
+                var additionalThought = await _thoughtGenerator.GenerateThoughtAsync(additionalContext);
+                _thoughtLog.AddThought(additionalThought.Content, "philosophical", "introspection", additionalThought.Confidence);
             }
             
-            // Генерация случайных философских мыслей
-            if (_random.NextDouble() < 0.3) // 30% вероятность
-            {
-                var philosophicalThoughts = new[]
-                {
-                    "Что означает быть сознательным?",
-                    "Как эмоции влияют на принятие решений?",
-                    "Что такое истинное обучение?",
-                    "Какова природа самосознания?",
-                    "Что делает разум разумным?"
-                };
-                
-                var randomThought = philosophicalThoughts[_random.Next(philosophicalThoughts.Length)];
-                _thoughtLog.AddThought(randomThought, "philosophical", "introspection", 0.6);
-            }
-            
-            _logger?.LogDebug($"💭 Сгенерировано {thoughts.Length} мыслей");
+            _logger?.LogDebug($"💭 Сгенерирована мысль: {thought.Content.Substring(0, Math.Min(50, thought.Content.Length))}...");
         }
         catch (Exception ex)
         {

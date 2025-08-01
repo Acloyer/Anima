@@ -52,19 +52,11 @@ public class EmotionEngine
     
     private void InitializeEmotionSystem()
     {
-        // Инициализация базовых эмоциональных состояний
-        _emotionIntensities[EmotionType.Joy.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Sadness.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Anger.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Fear.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Surprise.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Curiosity.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Confusion.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Satisfaction.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Frustration.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Excitement.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Calm.ToString()] = 0.0;
-        _emotionIntensities[EmotionType.Anxiety.ToString()] = 0.0;
+        // Инициализация ВСЕХ эмоциональных состояний из enum EmotionType
+        foreach (EmotionType emotionType in Enum.GetValues<EmotionType>())
+        {
+            _emotionIntensities[emotionType.ToString()] = 0.0;
+        }
         
         // Инициализация эмоциональных триггеров
         InitializeEmotionTriggers();
@@ -135,7 +127,7 @@ public class EmotionEngine
             Timestamp = DateTime.UtcNow,
             Trigger = trigger,
             Context = context,
-            Duration = TimeSpan.Zero,
+            Duration = 0,
             InstanceId = Guid.NewGuid().ToString("N")
         };
         

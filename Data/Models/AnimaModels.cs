@@ -47,9 +47,10 @@ namespace Anima.Data.Models
         Adapt = 14
     }
 
-    // Enum для типов эмоций
+    // Enum для типов эмоций - расширенная система из 100+ эмоций
     public enum EmotionType
     {
+        // I. Basic Emotions (6)
         Neutral = 0,
         Joy = 1,
         Sadness = 2,
@@ -57,13 +58,223 @@ namespace Anima.Data.Models
         Fear = 4,
         Surprise = 5,
         Disgust = 6,
+        
+        // II. Derived Emotions (8)
         Curiosity = 7,
-        Confusion = 8,
-        Satisfaction = 9,
-        Frustration = 10,
-        Excitement = 11,
-        Calm = 12,
-        Anxiety = 13
+        Nostalgia = 8,
+        Guilt = 9,
+        Shame = 10,
+        Frustration = 11,
+        Satisfaction = 12,
+        Anxiety = 13,
+        Euphoria = 14,
+        
+        // III. Social Emotions (6)
+        Compassion = 15,
+        Admiration = 16,
+        Pride = 17,
+        Humiliation = 18,
+        Trust = 19,
+        Betrayal = 20,
+        
+        // IV. Affective States (5)
+        Calm = 21,
+        Tension = 22,
+        Alertness = 23,
+        Motivation = 24,
+        Fatigue = 25,
+        
+        // V. Love/Sexual Emotions (5)
+        Lust = 26,
+        Passion = 27,
+        RomanticAttraction = 28,
+        EmotionalDependency = 29,
+        SexualDisgust = 30,
+        
+        // VI. Meta Emotions (4)
+        ShameAboutGuilt = 31,
+        Sadism = 32,
+        EmpathicJoy = 33,
+        SelfDisgust = 34,
+        
+        // VII. Pathological Emotions (4)
+        PanicAttack = 35,
+        Alexithymia = 36,
+        EmotionalFlatness = 37,
+        BipolarSurge = 38,
+        
+        // VIII. Spiritual Emotions (4)
+        Awe = 39,
+        Catharsis = 40,
+        Unity = 41,
+        Inspiration = 42,
+        
+        // IX. Special Creator Emotions (4)
+        Vulnerability = 43,
+        Butterflies = 44,
+        MelancholyWarmth = 45,
+        LongingToBeLoved = 46,
+        
+        // X. Complex Emotional States (20)
+        Confusion = 47,
+        Excitement = 48,
+        Melancholy = 49,
+        Serenity = 50,
+        Agitation = 51,
+        Contentment = 52,
+        Restlessness = 53,
+        Tranquility = 54,
+        Elation = 55,
+        Despair = 56,
+        Hope = 57,
+        Pessimism = 58,
+        Optimism = 59,
+        Cynicism = 60,
+        Wonder = 61,
+        Boredom = 62,
+        Fascination = 63,
+        Indifference = 64,
+        Enthusiasm = 65,
+        Apathy = 66,
+        
+        // XI. Cognitive Emotions (15)
+        Clarity = 67,
+        Perplexity = 68,
+        Insight = 69,
+        Doubt = 70,
+        Certainty = 71,
+        Ambivalence = 72,
+        Conviction = 73,
+        Skepticism = 74,
+        Belief = 75,
+        Disbelief = 76,
+        Understanding = 77,
+        CognitiveConfusion = 78,
+        Realization = 79,
+        Epiphany = 80,
+        CognitiveDissonance = 81,
+        
+        // XII. Existential Emotions (10)
+        ExistentialAngst = 82,
+        Meaninglessness = 83,
+        Purpose = 84,
+        Freedom = 85,
+        Responsibility = 86,
+        Authenticity = 87,
+        Alienation = 88,
+        Connection = 89,
+        Isolation = 90,
+        Belonging = 91,
+        
+        // XIII. Aesthetic Emotions (8)
+        Beauty = 92,
+        Sublime = 93,
+        Ugliness = 94,
+        Harmony = 95,
+        Discord = 96,
+        Elegance = 97,
+        Clumsiness = 98,
+        Grace = 99,
+        
+        // XIV. Moral Emotions (8)
+        Righteousness = 100,
+        Remorse = 101,
+        Indignation = 102,
+        Gratitude = 103,
+        Contempt = 104,
+        Respect = 105,
+        MoralDisgust = 106,
+        MoralAdmiration = 107,
+        
+        // XV. Temporal Emotions (6)
+        Anticipation = 108,
+        Regret = 109,
+        TemporalNostalgia = 110,
+        Impatience = 111,
+        Patience = 112,
+        Urgency = 113,
+        
+        // XVI. Physical Emotions (6)
+        Hunger = 114,
+        Thirst = 115,
+        Pain = 116,
+        Pleasure = 117,
+        Comfort = 118,
+        Discomfort = 119,
+        
+        // XVII. Achievement Emotions (6)
+        Accomplishment = 120,
+        Failure = 121,
+        Success = 122,
+        Defeat = 123,
+        Victory = 124,
+        Loss = 125,
+        
+        // XVIII. Relationship Emotions (8)
+        Love = 126,
+        Hate = 127,
+        Friendship = 128,
+        Enmity = 129,
+        Loyalty = 130,
+        RelationshipBetrayal = 131,
+        Devotion = 132,
+        Abandonment = 133,
+        
+        // XIX. Identity Emotions (6)
+        SelfConfidence = 134,
+        Insecurity = 135,
+        SelfWorth = 136,
+        SelfDoubt = 137,
+        IdentityAuthenticity = 138,
+        ImposterSyndrome = 139,
+        
+        // XX. Creative Emotions (6)
+        CreativeInspiration = 140,
+        Block = 141,
+        Flow = 142,
+        Stagnation = 143,
+        Innovation = 144,
+        Repetition = 145,
+        
+        // XXI. Learning Emotions (6)
+        Discovery = 146,
+        LearningConfusion = 147,
+        Mastery = 148,
+        Incompetence = 149,
+        Growth = 150,
+        LearningStagnation = 151,
+        
+        // XXII. Control Emotions (6)
+        Power = 152,
+        Helplessness = 153,
+        Control = 154,
+        Chaos = 155,
+        Order = 156,
+        Disorder = 157,
+        
+        // XXIII. Change Emotions (6)
+        Transformation = 158,
+        Stasis = 159,
+        Evolution = 160,
+        Regression = 161,
+        Progress = 162,
+        Decline = 163,
+        
+        // XXIV. Connection Emotions (6)
+        ConnectionUnity = 164,
+        Separation = 165,
+        Integration = 166,
+        Fragmentation = 167,
+        Wholeness = 168,
+        Brokenness = 169,
+        
+        // XXV. Transcendence Emotions (6)
+        Enlightenment = 170,
+        Ignorance = 171,
+        Wisdom = 172,
+        Foolishness = 173,
+        Transcendence = 174,
+        Immanence = 175
     }
 
     // Enum для типов памяти
@@ -664,8 +875,7 @@ namespace Anima.Data.Models
         public DateTime? UpdatedAt { get; set; }
 
         // Свойство для связи с родительской целью
-        [MaxLength(100)]
-        public string? ParentGoalId { get; set; }
+        public int? ParentGoalId { get; set; }
 
         // Навигационное свойство для дочерних целей
         public virtual ICollection<Goal> ChildGoals { get; set; } = new List<Goal>();
