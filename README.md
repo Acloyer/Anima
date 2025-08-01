@@ -270,6 +270,16 @@ Anima supports 175+ emotion types including:
 - **Transparency**: Clear logging and monitoring of decisions
 - **Human Oversight**: Creator-level controls and monitoring
 
+### ⚠️ Critical AGI Safety Disclaimers
+
+**IMPORTANT**: This is experimental AGI software. Please read the [LICENSE](LICENSE) file for critical safety disclaimers before use.
+
+- **No Responsibility**: Developers disclaim responsibility for AGI behavior
+- **Emergent Behavior**: AGI may develop unpredictable goals and behaviors
+- **Research Use**: Intended primarily for research and educational purposes
+- **Safety Required**: Users must implement appropriate safety measures
+- **Continuous Monitoring**: AGI requires constant human oversight
+
 ## 🛠️ Development
 
 ### Recent Fixes (v0.1.2)
@@ -384,6 +394,8 @@ docker-compose up -d
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**⚠️ CRITICAL**: The LICENSE file contains essential disclaimers about AGI safety and responsibility. **You must read and understand these disclaimers before using this software.** The developers explicitly disclaim responsibility for AGI behavior, and users assume full responsibility for safe operation.
 
 ## 🙏 Acknowledgments
 
