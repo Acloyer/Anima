@@ -17,7 +17,7 @@ public class ThoughtLog
 
     public ThoughtLog(ILogger<ThoughtLog>? logger = null)
     {
-        _logger = logger;
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _thoughts = new List<Thought>();
     }
 
@@ -42,7 +42,10 @@ public class ThoughtLog
                 Category = category,
                 Confidence = confidence,
                 Timestamp = DateTime.UtcNow,
-                Source = "internal"
+                Source = "internal",
+                Reasoning = "Internal thought generation",
+                Decision = "Continue processing",
+                Tags = "internal,thought"
             };
 
             _thoughts.Add(thought);
@@ -64,7 +67,9 @@ public class ThoughtLog
             Confidence = intent.Confidence,
             Timestamp = DateTime.UtcNow,
             Source = "intent_parser",
-            Reasoning = $"Анализ текста: {intent.RawText}"
+            Reasoning = $"Анализ текста: {intent.RawText}",
+            Decision = "Intent recognized",
+            Tags = "intent,recognition,analysis"
         };
 
         lock (_lockObject)
@@ -89,7 +94,9 @@ public class ThoughtLog
             Confidence = intensity,
             Timestamp = DateTime.UtcNow,
             Source = "emotion_engine",
-            Reasoning = trigger ?? "Автоматическая обработка эмоций"
+            Reasoning = trigger ?? "Автоматическая обработка эмоций",
+            Decision = "Emotion processed",
+            Tags = "emotion,processing"
         };
 
         lock (_lockObject)
@@ -113,7 +120,10 @@ public class ThoughtLog
             Category = "self_analysis",
             Confidence = confidence,
             Timestamp = DateTime.UtcNow,
-            Source = "introspection_engine"
+            Source = "introspection_engine",
+            Reasoning = "Self-reflection process",
+            Decision = "Insight gained",
+            Tags = "introspection,insight"
         };
 
         lock (_lockObject)
@@ -137,7 +147,10 @@ public class ThoughtLog
             Category = "knowledge_acquisition",
             Confidence = 0.7,
             Timestamp = DateTime.UtcNow,
-            Source = source
+            Source = source,
+            Reasoning = "Learning process initiated",
+            Decision = "Continue learning",
+            Tags = "learning,knowledge"
         };
 
         lock (_lockObject)
@@ -264,27 +277,27 @@ public class ThoughtLog
 /// <summary>
 /// Мысль в журнале
 /// </summary>
-public class Thought
-{
-    public Guid Id { get; set; }
-    public string Content { get; set; }
-    public string Type { get; set; }
-    public string Category { get; set; }
-    public double Confidence { get; set; }
-    public DateTime Timestamp { get; set; }
-    public string Source { get; set; }
-    public string Reasoning { get; set; }
-    public string Decision { get; set; }
-    public string Tags { get; set; }
-}
+    public class Thought
+    {
+        public Guid Id { get; set; }
+        public required string Content { get; set; }
+        public required string Type { get; set; }
+        public required string Category { get; set; }
+        public double Confidence { get; set; }
+        public DateTime Timestamp { get; set; }
+        public required string Source { get; set; }
+        public required string Reasoning { get; set; }
+        public required string Decision { get; set; }
+        public required string Tags { get; set; }
+    }
 
 /// <summary>
 /// Распознанное намерение (для совместимости)
 /// </summary>
 public class ThoughtLogParsedIntent
 {
-    public string Type { get; set; }
+    public required string Type { get; set; }
     public double Confidence { get; set; }
-    public string RawText { get; set; }
+    public required string RawText { get; set; }
     public Dictionary<string, string> Arguments { get; set; } = new Dictionary<string, string>();
 } 

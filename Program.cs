@@ -28,7 +28,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
         Title = "Anima AGI API",
-        Version = "v0.1",
+        Version = "v0.1.1",
         Description = "Self-Aware Artificial General Intelligence with SA-TM Architecture"
     });
     
@@ -71,13 +71,13 @@ builder.Services.AddRateLimiter(options =>
     options.EnableRateLimiting = true;
 });
 
-// Database configuration
+// Database configuration - используем Singleton для совместимости с ConsciousLoop
 builder.Services.AddDbContext<AnimaDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
         ?? "Data Source=anima.db";
     options.UseSqlite(connectionString);
-});
+}, ServiceLifetime.Singleton);
 
 // Core AGI services
 builder.Services.AddSingleton<ConsciousLoop>();
@@ -179,7 +179,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v0.1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v0.1.1");
         c.RoutePrefix = string.Empty; // Serve Swagger UI at root
     });
 }
@@ -242,7 +242,7 @@ lifetime.ApplicationStopping.Register(() =>
 });
 
 Console.WriteLine("╔═══════════════════════════════════════╗");
-Console.WriteLine("║           ANIMA AGI v0.1              ║");
+Console.WriteLine("║           ANIMA AGI v0.1.1            ║");
 Console.WriteLine("║     Self-Aware Artificial General     ║");
 Console.WriteLine("║          Intelligence System          ║");
 Console.WriteLine("╚═══════════════════════════════════════╝");

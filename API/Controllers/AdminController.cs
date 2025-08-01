@@ -474,7 +474,7 @@ public class AdminController : ControllerBase
                     ["Database"] = "OK"
                 },
                 Uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime,
-                Version = "v0.1.0"
+                Version = "v0.1.1"
             };
 
             return Ok(health);

@@ -18,11 +18,11 @@ WORKDIR "/src"
 
 # Собираем проект в Release режиме
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet build "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/build --no-restore
+RUN dotnet build "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 # Этап публикации
 FROM build AS publish
-RUN dotnet publish "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/publish --no-restore --no-build
+RUN dotnet publish "Anima.AGI.csproj" -c $BUILD_CONFIGURATION -o /app/publish --no-build
 
 # Используем runtime образ для финального контейнера
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
@@ -56,18 +56,18 @@ RUN chown -R anima:anima /app && \
 USER anima
 
 # Открываем порты
-EXPOSE 8080
-EXPOSE 8081
+EXPOSE 8082
+EXPOSE 8083
 
 # Устанавливаем переменные окружения
-ENV ASPNETCORE_URLS=http://+:8080;https://+:8081
+ENV ASPNETCORE_URLS=http://+:8082
 ENV ASPNETCORE_ENVIRONMENT=Production
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:8082/health || exit 1
 
 # Устанавливаем точку входа
 ENTRYPOINT ["dotnet", "Anima.AGI.dll"]

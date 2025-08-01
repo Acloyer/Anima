@@ -109,9 +109,27 @@ namespace Anima.Core.Intent
     /// </summary>
     public class IntentParser
     {
-        // Удаляем дублирование поля _context
-        private Dictionary<IntentType, List<string>> _intentKeywords;
-        private Dictionary<IntentType, List<Regex>> _intentPatterns;
+        private Dictionary<IntentType, List<string>> _intentKeywords = new();
+        private Dictionary<IntentType, List<Regex>> _intentPatterns = new();
+        private readonly AnimaDbContext _dbContext;
+        private readonly ILogger<IntentParser> _logger;
+        private readonly string _instanceId;
+        private string _currentTopic = "general";
+        private string _currentEmotion = "neutral";
+        private string _currentGoal = "assist";
+
+        public IntentParser(AnimaDbContext dbContext, ILogger<IntentParser> logger)
+        {
+            _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _instanceId = Guid.NewGuid().ToString();
+            InitializeKeywords();
+            InitializePatterns();
+        }
+
+        // Дополнительные поля для расширенной функциональности
+        private Dictionary<IntentType, List<string>> _intentKeywordsExtended;
+        private Dictionary<IntentType, List<Regex>> _intentPatternsExtended;
         private List<TrainingData> _trainingData;
         private ConversationContext _context;
         private Dictionary<string, double> _wordWeights;
@@ -121,14 +139,6 @@ namespace Anima.Core.Intent
         private Dictionary<string, string> _synonyms;
         private Dictionary<string, double> _sentimentWords;
         private List<string> _stopWords;
-
-        // Делаем поля изменяемыми
-        protected AnimaDbContext _dbContext; // Переименовываем для избежания конфликта
-        protected ILogger<IntentParser> _logger;
-        protected string _instanceId;
-        protected string _currentTopic;
-        protected string _currentEmotion;
-        protected string _currentGoal;
 
         // Public property for accessing training data
         public List<TrainingData> TrainingData => _trainingData;
@@ -161,6 +171,8 @@ namespace Anima.Core.Intent
             _synonyms = new Dictionary<string, string>();
             _sentimentWords = new Dictionary<string, double>();
             _stopWords = new List<string>();
+            _intentKeywordsExtended = new Dictionary<IntentType, List<string>>();
+            _intentPatternsExtended = new Dictionary<IntentType, List<Regex>>();
 
             InitializeKeywords();
             InitializePatterns();

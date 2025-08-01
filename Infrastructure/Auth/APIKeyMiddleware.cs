@@ -80,7 +80,12 @@ public class APIKeyMiddleware
         var token = authHeader.Substring("Bearer ".Length).Trim();
         
         // Определяем тип токена и валидируем
-        if (token.Length == 32) // Сессия
+        // Если токен содержит дефисы или подчеркивания, это API ключ
+        if (token.Contains('-') || token.Contains('_'))
+        {
+            return await _apiKeyService.ValidateAPIKeyAsync(token);
+        }
+        else if (token.Length == 32) // Сессия (32 символа без дефисов/подчеркиваний)
         {
             return await _apiKeyService.ValidateSessionAsync(token);
         }

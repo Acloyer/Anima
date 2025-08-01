@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   anima-agi:
     build:
@@ -9,11 +7,11 @@ services:
         BUILD_CONFIGURATION: Release
     container_name: anima-agi-container
     ports:
-      - "8080:8080"
-      - "8081:8081"
+      - "8082:8082"
+      - "8083:8083"
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080;https://+:8081
+      - ASPNETCORE_URLS=http://+:8082
       - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db;Cache=Shared;Foreign Keys=true;
       - TelegramBot__IsEnabled=false
       - AnimaAGI__LearningEnabled=true
@@ -29,7 +27,7 @@ services:
       - anima-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
       interval: 30s
       timeout: 10s
       retries: 3

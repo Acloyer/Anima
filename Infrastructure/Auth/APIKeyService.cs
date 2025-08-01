@@ -1,6 +1,7 @@
 using Anima.Data;
 using Anima.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 // using DbContext = Anima.Data.Models.AnimaDbContext;
 using DbContext = Anima.Data.AnimaDbContext;
 using System.Security.Cryptography;
@@ -13,7 +14,12 @@ namespace Anima.Infrastructure.Auth;
 /// </summary>
 public class APIKeyService
 {
-    private const string MasterKey = "anima_creator_master_2024"; // В продакшене должен быть в конфигурации
+    private readonly string _masterKey; // Получаем из конфигурации
+
+    public APIKeyService(IConfiguration configuration)
+    {
+        _masterKey = configuration["Security:DefaultApiKey"] ?? "anima-creator-key-2025-v1-secure";
+    }
     private readonly Dictionary<string, UserSession> _activeSessions = new();
 
     /// <summary>
@@ -31,7 +37,7 @@ public class APIKeyService
         }
 
         // Проверка мастер-ключа Создателя
-        if (apiKey == MasterKey)
+        if (apiKey == _masterKey)
         {
             return new AuthResult
             {

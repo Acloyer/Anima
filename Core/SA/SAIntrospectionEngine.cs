@@ -191,7 +191,7 @@ public class SAIntrospectionEngine
 public class IntrospectionSession
 {
     public Guid Id { get; set; }
-    public string Topic { get; set; }
+    public required string Topic { get; set; }
     public DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
     public IntrospectionStatus Status { get; set; }
@@ -215,7 +215,7 @@ public class Insight
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public InsightType Type { get; set; }
-    public string Content { get; set; }
+    public required string Content { get; set; }
     public double Confidence { get; set; }
     public DateTime Timestamp { get; set; }
     public Dictionary<string, object> Metadata { get; set; } = new Dictionary<string, object>();

@@ -552,12 +552,8 @@ namespace Anima.Core.Intent
         }
 
         // Добавляем конструктор с параметрами для базового класса
-        public AdvancedIntentParser(AnimaDbContext context, ILogger<IntentParser> logger, string instanceId) : base()
+        public AdvancedIntentParser(AnimaDbContext context, ILogger<IntentParser> logger, string instanceId) : base(context, logger)
         {
-            _dbContext = context; // Используем правильное имя поля
-            _logger = logger;
-            _instanceId = instanceId;
-            
             _neuralNetwork = new IntentNeuralNetwork(FEATURE_VECTOR_SIZE, HIDDEN_LAYER_SIZE, Enum.GetValues<IntentType>().Length);
             _embeddingSystem = new WordEmbeddingSystem();
             _morphAnalyzer = new MorphologicalAnalyzer();
