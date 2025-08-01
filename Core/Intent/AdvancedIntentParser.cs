@@ -49,6 +49,12 @@ namespace Anima.Core.Intent
             _learningRate = learningRate;
             _random = new Random(42);
             
+            // Initialize arrays to avoid null reference warnings
+            _weightsInputHidden = new float[inputSize, hiddenSize];
+            _weightsHiddenOutput = new float[hiddenSize, outputSize];
+            _biasHidden = new float[hiddenSize];
+            _biasOutput = new float[outputSize];
+            
             InitializeWeights();
         }
         
@@ -497,7 +503,7 @@ namespace Anima.Core.Intent
             var words = sentence.ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
             
             // Поиск главного глагола
-            string mainVerb = null;
+            string? mainVerb = null;
             foreach (var word in words)
             {
                 if (_verbFrames.ContainsKey(word))

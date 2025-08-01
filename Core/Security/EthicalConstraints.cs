@@ -68,7 +68,7 @@ public class EthicalConstraints
     /// <summary>
     /// Объяснение почему действие запрещено
     /// </summary>
-    public async Task<string> ExplainConstraintAsync(string action)
+    public string ExplainConstraint(string action)
     {
         var normalizedAction = action.ToLower().Replace(" ", "_");
         

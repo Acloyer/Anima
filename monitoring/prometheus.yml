@@ -1,0 +1,8 @@
+﻿global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'anima-agi'
+    static_configs:
+      - targets: ['anima-agi-container:8082']
+    metrics_path: '/metrics'

@@ -37,7 +37,8 @@ RUN apt-get update && apt-get install -y \
 # Создаем пользователя без root прав
 RUN adduser --disabled-password --gecos '' anima && \
     mkdir -p /app/logs /app/ssl /app/data && \
-    chown -R anima:anima /app
+    chown -R anima:anima /app && \
+    chmod 755 /app/data
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -45,11 +46,12 @@ WORKDIR /app
 # Копируем опубликованные файлы
 COPY --from=publish /app/publish .
 
-# Создаем необходимые директории
-RUN mkdir -p logs ssl data
-
-# Устанавливаем права доступа
-RUN chown -R anima:anima /app && \
+# Создаем необходимые директории с правильными правами
+RUN mkdir -p logs ssl data && \
+    chown -R anima:anima /app && \
+    chmod 755 /app/data && \
+    chmod 755 /app/logs && \
+    chmod 755 /app/ssl && \
     chmod +x /app/Anima.AGI
 
 # Переключаемся на пользователя anima
@@ -67,7 +69,7 @@ ENV DOTNET_USE_POLLING_FILE_WATCHER=true
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8082/health || exit 1
+    CMD curl -f http://localhost:8082/api/admin/health || exit 1
 
 # Устанавливаем точку входа
 ENTRYPOINT ["dotnet", "Anima.AGI.dll"]

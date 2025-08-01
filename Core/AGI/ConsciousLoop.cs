@@ -155,6 +155,8 @@ public class ConsciousLoop : IDisposable
                 _logger?.LogError(ex, "Ошибка в потоке сознания");
             }
         }, _cancellationTokenSource.Token);
+        
+        await Task.CompletedTask;
     }
 
     /// <summary>

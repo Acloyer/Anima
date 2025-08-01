@@ -57,6 +57,15 @@ public class APIKeyMiddleware
 
     private async Task<AuthResult> AuthenticateRequest(HttpContext context)
     {
+        // Проверяем заголовок X-API-Key (приоритет)
+        var apiKeyHeader = context.Request.Headers["X-API-Key"].FirstOrDefault();
+        
+        if (!string.IsNullOrEmpty(apiKeyHeader))
+        {
+            return await _apiKeyService.ValidateAPIKeyAsync(apiKeyHeader);
+        }
+        
+        // Проверяем заголовок Authorization
         var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
         
         if (string.IsNullOrEmpty(authHeader))
@@ -64,7 +73,7 @@ public class APIKeyMiddleware
             return new AuthResult
             {
                 IsValid = false,
-                ErrorMessage = "Отсутствует заголовок Authorization"
+                ErrorMessage = "Отсутствует заголовок Authorization или X-API-Key"
             };
         }
 
@@ -73,7 +82,7 @@ public class APIKeyMiddleware
             return new AuthResult
             {
                 IsValid = false,
-                ErrorMessage = "Неверный формат токена. Используйте 'Bearer <token>'"
+                ErrorMessage = "Неверный формат токена. Используйте 'Bearer <token>' или заголовок 'X-API-Key'"
             };
         }
 
@@ -87,7 +96,7 @@ public class APIKeyMiddleware
         }
         else if (token.Length == 32) // Сессия (32 символа без дефисов/подчеркиваний)
         {
-            return await _apiKeyService.ValidateSessionAsync(token);
+            return _apiKeyService.ValidateSession(token);
         }
         else // API ключ
         {
@@ -103,11 +112,21 @@ public class APIKeyMiddleware
             "/health",
             "/api/health",
             "/swagger",
+            "/swagger/",
+            "/swagger/index.html",
+            "/swagger/v1/swagger.json",
+            "/swagger/v1/swagger.json",
             "/api/docs",
-            "/favicon.ico"
+            "/favicon.ico",
+            "/css",
+            "/js",
+            "/lib"
         };
 
-        return publicPaths.Any(p => path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
+        // Проверяем точное совпадение или начало пути
+        return publicPaths.Any(p => 
+            path.Equals(p, StringComparison.OrdinalIgnoreCase) || 
+            path.StartsWithSegments(p, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task HandleUnauthorized(HttpContext context, string errorMessage)

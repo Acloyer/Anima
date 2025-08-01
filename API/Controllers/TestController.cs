@@ -111,7 +111,7 @@ public class TestController : ControllerBase
             
             var session = await _selfReflection.StartReflectionSessionAsync(request.Trigger, request.Context);
             var status = _selfReflection.GetStatus();
-            var recommendations = await _selfReflection.GetRecommendationsAsync();
+            var recommendations = _selfReflection.GetRecommendations();
             
             var response = new ReflectionTestResponse
             {
@@ -193,7 +193,7 @@ public class TestController : ControllerBase
     /// Получает статус всех компонентов системы мыслей
     /// </summary>
     [HttpGet("status")]
-    public async Task<IActionResult> GetSystemStatus()
+    public IActionResult GetSystemStatus()
     {
         try
         {

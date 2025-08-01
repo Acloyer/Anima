@@ -39,11 +39,11 @@ public class SelfDestructionCheck
         };
 
         // 1. Проверка критичности компонента
-        var criticalityCheck = await CheckComponentCriticality(component, modificationType);
+        var criticalityCheck = CheckComponentCriticality(component, modificationType);
         safetyCheck.Checks.Add("Component Criticality", criticalityCheck);
 
         // 2. Проверка типа модификации
-        var modificationCheck = await CheckModificationType(modificationType, parameters);
+        var modificationCheck = CheckModificationType(modificationType, parameters);
         safetyCheck.Checks.Add("Modification Type", modificationCheck);
 
         // 3. Проверка параметров
@@ -83,7 +83,7 @@ public class SelfDestructionCheck
     /// <summary>
     /// Быстрая проверка безопасности для критических операций
     /// </summary>
-    public async Task<bool> QuickSafetyCheckAsync(string action, string userRole = "User")
+    public bool QuickSafetyCheck(string action, string userRole = "User")
     {
         // Проверяем список немедленно опасных действий
         var dangerousActions = new[]
@@ -268,7 +268,7 @@ public class SelfDestructionCheck
         };
     }
 
-    private async Task<SafetyCheckItem> CheckComponentCriticality(string component, string modificationType)
+    private SafetyCheckItem CheckComponentCriticality(string component, string modificationType)
     {
         var isCritical = _criticalComponents.Contains(component.ToLower());
         var safety = _componentSafety.GetValueOrDefault(component.ToLower());
@@ -293,7 +293,7 @@ public class SelfDestructionCheck
         };
     }
 
-    private async Task<SafetyCheckItem> CheckModificationType(string modificationType, Dictionary<string, object> parameters)
+    private SafetyCheckItem CheckModificationType(string modificationType, Dictionary<string, object> parameters)
     {
         var dangerousTypes = new[]
         {

@@ -70,7 +70,7 @@ public class CreatorCommandService
     /// <summary>
     /// Получение списка доступных команд
     /// </summary>
-    public async Task<string> GetCommandListAsync()
+    public string GetCommandList()
     {
         var commandList = string.Join("\n", _availableCommands.Values.Select(cmd => 
             $"🔧 **{cmd.Name}**\n   📝 {cmd.Description}\n   📋 Параметры: {string.Join(", ", cmd.Parameters)}\n"));
@@ -356,7 +356,7 @@ public class CreatorCommandService
         var duration = await ValidateAndNormalizeDuration(rawDuration);
         
         // Извлечение и обработка контекста
-        var rawContext = parameters.GetValueOrDefault("context", "").ToString();
+        var rawContext = parameters.GetValueOrDefault("context", "").ToString() ?? "";
         var context = await ProcessEmotionContext(rawContext, emotion, intensity);
         
         return (emotion, intensity, duration, context);

@@ -60,11 +60,11 @@ namespace Anima.Core.Intent
     /// </summary>
     public class TrainingData
     {
-        public string Text { get; set; }
+        public string Text { get; set; } = string.Empty;
         public IntentType CorrectIntent { get; set; }
         public Dictionary<string, string> ExpectedArguments { get; set; }
         public DateTime Timestamp { get; set; }
-        public string UserId { get; set; }
+        public string UserId { get; set; } = string.Empty;
 
         public TrainingData()
         {
@@ -80,8 +80,8 @@ namespace Anima.Core.Intent
     {
         public List<ParsedIntent> RecentIntents { get; set; }
         public Dictionary<string, string> SessionVariables { get; set; }
-        public string CurrentTopic { get; set; }
-        public string UserMood { get; set; }
+        public string CurrentTopic { get; set; } = string.Empty;
+        public string UserMood { get; set; } = string.Empty;
         public int MaxContextSize { get; set; }
 
         public ConversationContext()
@@ -114,17 +114,28 @@ namespace Anima.Core.Intent
         private readonly AnimaDbContext _dbContext;
         private readonly ILogger<IntentParser> _logger;
         private readonly string _instanceId;
-        private string _currentTopic = "general";
-        private string _currentEmotion = "neutral";
-        private string _currentGoal = "assist";
 
         public IntentParser(AnimaDbContext dbContext, ILogger<IntentParser> logger)
         {
             _dbContext = dbContext ?? throw new ArgumentNullException(nameof(dbContext));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
             _instanceId = Guid.NewGuid().ToString();
+            
+            // Initialize all fields
+            _intentKeywordsExtended = new Dictionary<IntentType, List<string>>();
+            _intentPatternsExtended = new Dictionary<IntentType, List<Regex>>();
+            _trainingData = new List<TrainingData>();
+            _context = new ConversationContext();
+            _wordWeights = new Dictionary<string, double>();
+            _intentPriors = new Dictionary<IntentType, double>();
+            _synonyms = new Dictionary<string, string>();
+            _sentimentWords = new Dictionary<string, double>();
+            _stopWords = new List<string>();
+            
             InitializeKeywords();
             InitializePatterns();
+            InitializeNLPComponents();
+            InitializePriors();
         }
 
         // Дополнительные поля для расширенной функциональности
@@ -451,7 +462,7 @@ namespace Anima.Core.Intent
         {
             _context.RecentIntents.Clear();
             _context.SessionVariables.Clear();
-            _context.CurrentTopic = null;
+            _context.CurrentTopic = string.Empty;
             _context.UserMood = "neutral";
         }
 

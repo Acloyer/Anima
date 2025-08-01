@@ -92,7 +92,7 @@ public class AdminController : ControllerBase
         {
             var userRole = this.GetUserRole();
             // Исправляем проблему с методами
-            var commands = await _commandService.GetCommandListAsync();
+            var commands = _commandService.GetCommandList();
 
             return Ok(new CommandResponse
             {
@@ -474,7 +474,7 @@ public class AdminController : ControllerBase
                     ["Database"] = "OK"
                 },
                 Uptime = DateTime.UtcNow - Process.GetCurrentProcess().StartTime,
-                Version = "v0.1.1"
+                Version = "v0.1.2"
             };
 
             return Ok(health);

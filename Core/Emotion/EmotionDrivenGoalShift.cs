@@ -120,7 +120,7 @@ public class EmotionDrivenGoalShift
             var emotionalThought = await GenerateEmotionalThoughtAsync(currentEmotion, currentIntensity);
             
             // Корректируем приоритеты целей
-            var goalAdjustments = await AdjustGoalPrioritiesAsync(triggeredGoals, currentEmotion);
+            var goalAdjustments = AdjustGoalPriorities(triggeredGoals, currentEmotion);
             
             // Создаем эмоциональный инсайт
             var insight = new EmotionalInsight
@@ -137,7 +137,7 @@ public class EmotionDrivenGoalShift
             _emotionalInsights.Add(insight);
             
             // Обновляем эмоциональный интеллект
-            await UpdateEmotionalIntelligenceAsync(insight);
+            UpdateEmotionalIntelligence(insight);
             
             var goalShift = new EmotionalGoalShift
             {
@@ -194,7 +194,7 @@ public class EmotionDrivenGoalShift
         // Если нет активированных целей, создаем новую на основе эмоции
         if (!triggeredGoals.Any())
         {
-            var newGoal = await CreateEmotionalGoalAsync(currentEmotion, intensity);
+            var newGoal = CreateEmotionalGoal(currentEmotion, intensity);
             if (newGoal != null)
             {
                 triggeredGoals.Add(newGoal);
@@ -230,7 +230,7 @@ public class EmotionDrivenGoalShift
     /// <summary>
     /// Корректирует приоритеты целей на основе эмоционального состояния
     /// </summary>
-    private async Task<Dictionary<string, double>> AdjustGoalPrioritiesAsync(List<EmotionalGoal> triggeredGoals, string currentEmotion)
+    private Dictionary<string, double> AdjustGoalPriorities(List<EmotionalGoal> triggeredGoals, string currentEmotion)
     {
         var adjustments = new Dictionary<string, double>();
         
@@ -265,7 +265,7 @@ public class EmotionDrivenGoalShift
     /// <summary>
     /// Создает новую эмоциональную цель на основе эмоции
     /// </summary>
-    private async Task<EmotionalGoal> CreateEmotionalGoalAsync(string emotion, double intensity)
+    private EmotionalGoal CreateEmotionalGoal(string emotion, double intensity)
     {
         var goalName = $"emotional_{emotion.ToLower()}_management";
         var description = $"Управление эмоцией {emotion} и развитие эмоционального интеллекта";
@@ -287,7 +287,7 @@ public class EmotionDrivenGoalShift
     /// <summary>
     /// Обновляет уровень эмоционального интеллекта на основе инсайтов
     /// </summary>
-    private async Task UpdateEmotionalIntelligenceAsync(EmotionalInsight insight)
+    private void UpdateEmotionalIntelligence(EmotionalInsight insight)
     {
         // Анализируем качество эмоционального понимания
         var understandingQuality = CalculateUnderstandingQuality(insight);

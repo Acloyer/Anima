@@ -20,7 +20,6 @@ public class DreamEngine
     // Параметры генерации снов
     private double _dreamIntensity = 0.5;
     private double _symbolicDensity = 0.7;
-    private double _emotionalInfluence = 0.8;
     private bool _isDreaming = false;
 
     public DreamEngine(ILogger<DreamEngine> logger)

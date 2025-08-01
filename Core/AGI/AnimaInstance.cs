@@ -241,11 +241,11 @@ public class AnimaInstance
         var contextualResponse = parsed.Type switch
         {
             Anima.Core.Intent.IntentType.Greet => await AddGreetingContextAsync(baseResponse, currentEmotion),
-            Anima.Core.Intent.IntentType.AskQuestion => await AddQuestionContextAsync(baseResponse, userInput),
-            Anima.Core.Intent.IntentType.GiveFeedback => await AddFeedbackContextAsync(baseResponse, parsed),
-            Anima.Core.Intent.IntentType.RequestMemory => await AddMemoryContextAsync(baseResponse, userInput),
-            Anima.Core.Intent.IntentType.Reflect => await AddReflectionContextAsync(baseResponse, thought),
-            Anima.Core.Intent.IntentType.TriggerEmotion => await AddEmotionalContextAsync(baseResponse, currentEmotion),
+            Anima.Core.Intent.IntentType.AskQuestion => AddQuestionContext(baseResponse, userInput),
+            Anima.Core.Intent.IntentType.GiveFeedback => AddFeedbackContext(baseResponse, parsed),
+            Anima.Core.Intent.IntentType.RequestMemory => AddMemoryContext(baseResponse, userInput),
+            Anima.Core.Intent.IntentType.Reflect => AddReflectionContext(baseResponse, thought),
+            Anima.Core.Intent.IntentType.TriggerEmotion => AddEmotionalContext(baseResponse, currentEmotion),
             _ => baseResponse
         };
         
@@ -290,7 +290,7 @@ public class AnimaInstance
     /// <summary>
     /// Добавляет контекст вопроса
     /// </summary>
-    private async Task<string> AddQuestionContextAsync(string baseResponse, string userInput)
+    private string AddQuestionContext(string baseResponse, string userInput)
     {
         if (baseResponse.Contains("вопросе") || baseResponse.Contains("понимаю"))
         {
@@ -303,7 +303,7 @@ public class AnimaInstance
     /// <summary>
     /// Добавляет контекст обратной связи
     /// </summary>
-    private async Task<string> AddFeedbackContextAsync(string baseResponse, ParsedIntent parsed)
+    private string AddFeedbackContext(string baseResponse, ParsedIntent parsed)
     {
         if (parsed.Sentiment == "positive")
         {
@@ -320,7 +320,7 @@ public class AnimaInstance
     /// <summary>
     /// Добавляет контекст памяти
     /// </summary>
-    private async Task<string> AddMemoryContextAsync(string baseResponse, string userInput)
+    private string AddMemoryContext(string baseResponse, string userInput)
     {
         return $"Конечно, я постараюсь помочь. {baseResponse}";
     }
@@ -328,7 +328,7 @@ public class AnimaInstance
     /// <summary>
     /// Добавляет контекст размышлений
     /// </summary>
-    private async Task<string> AddReflectionContextAsync(string baseResponse, GeneratedThought thought)
+    private string AddReflectionContext(string baseResponse, GeneratedThought thought)
     {
         if (thought.Type == "introspective" || thought.Type == "philosophical")
         {
@@ -341,7 +341,7 @@ public class AnimaInstance
     /// <summary>
     /// Добавляет эмоциональный контекст
     /// </summary>
-    private async Task<string> AddEmotionalContextAsync(string baseResponse, string currentEmotion)
+    private string AddEmotionalContext(string baseResponse, string currentEmotion)
     {
         return $"Я чувствую ваши эмоции. {baseResponse}";
     }

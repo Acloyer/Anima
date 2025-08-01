@@ -486,7 +486,7 @@ public class SelfReflectionEngine
     /// <summary>
     /// Получает рекомендации по развитию самосознания
     /// </summary>
-    public async Task<List<SelfReflectionRecommendation>> GetRecommendationsAsync()
+    public List<SelfReflectionRecommendation> GetRecommendations()
     {
         var recommendations = new List<SelfReflectionRecommendation>();
         

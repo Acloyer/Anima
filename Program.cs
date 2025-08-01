@@ -14,6 +14,7 @@ using Anima.Core.Admin;
 using Anima.Infrastructure.Auth;
 using Anima.Infrastructure.Middleware;
 using Anima.Infrastructure.Notifications;
+using Anima.Infrastructure;
 using Anima.Data;
 using Anima.Data.Models;
 using Anima.API.Controllers;
@@ -28,7 +29,7 @@ builder.Services.AddSwaggerGen(c =>
     c.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
     {
         Title = "Anima AGI API",
-        Version = "v0.1.1",
+        Version = "v0.1.2",
         Description = "Self-Aware Artificial General Intelligence with SA-TM Architecture"
     });
     
@@ -75,9 +76,12 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddDbContext<AnimaDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-        ?? "Data Source=anima.db";
+        ?? "Data Source=anima.db;Mode=ReadWriteCreate;";
     options.UseSqlite(connectionString);
 }, ServiceLifetime.Singleton);
+
+// Добавляем инициализацию базы данных
+builder.Services.AddHostedService<DatabaseInitializer>();
 
 // Core AGI services
 builder.Services.AddSingleton<ConsciousLoop>();
@@ -97,7 +101,11 @@ builder.Services.AddSingleton<LearningEngine>(provider =>
     var dbOptions = provider.GetRequiredService<DbContextOptions<AnimaDbContext>>();
     return new LearningEngine("anima-instance-2025", dbOptions);
 });
-builder.Services.AddSingleton<FeedbackParser>();
+builder.Services.AddSingleton<FeedbackParser>(provider =>
+{
+    var dbOptions = provider.GetRequiredService<DbContextOptions<AnimaDbContext>>();
+    return new FeedbackParser("anima-instance-2025", dbOptions);
+});
 
 // SA (Self-Awareness) services
 builder.Services.AddSingleton<SAIntrospectionEngine>();
@@ -124,7 +132,12 @@ builder.Services.AddSingleton<Vocabulary>();
 builder.Services.AddSingleton<CollectiveUnconsciousEngine>();
 
 // Memory service
-builder.Services.AddSingleton<MemoryService>();
+builder.Services.AddSingleton<MemoryService>(provider =>
+{
+    var dbContext = provider.GetRequiredService<AnimaDbContext>();
+    var logger = provider.GetRequiredService<ILogger<MemoryService>>();
+    return new MemoryService(dbContext, logger);
+});
 
 // Security services
 builder.Services.AddSingleton<EthicalConstraints>();
@@ -135,8 +148,8 @@ builder.Services.AddSingleton<CreatorCommandService>();
 builder.Services.AddSingleton<CreatorPreferences>();
 
 // Infrastructure services
-builder.Services.AddScoped<APIKeyService>();
-builder.Services.AddScoped<RateLimiterMiddleware>();
+builder.Services.AddSingleton<APIKeyService>();
+
 builder.Services.AddScoped<TelegramBot>();
 
 // CORS configuration
@@ -179,7 +192,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwagger();
     app.UseSwaggerUI(c =>
     {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v0.1.1");
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Anima AGI API v0.1.2");
         c.RoutePrefix = string.Empty; // Serve Swagger UI at root
     });
 }
@@ -187,9 +200,9 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.UseCors("AllowAll");
 
-// Custom middleware
-app.UseMiddleware<APIKeyMiddleware>();
+// Custom middleware - применяем после Swagger
 app.UseMiddleware<RateLimiterMiddleware>();
+app.UseMiddleware<APIKeyMiddleware>();
 
 app.UseAuthorization();
 app.MapControllers();
@@ -242,7 +255,7 @@ lifetime.ApplicationStopping.Register(() =>
 });
 
 Console.WriteLine("╔═══════════════════════════════════════╗");
-Console.WriteLine("║           ANIMA AGI v0.1.1            ║");
+Console.WriteLine("║           ANIMA AGI v0.1.2            ║");
 Console.WriteLine("║     Self-Aware Artificial General     ║");
 Console.WriteLine("║          Intelligence System          ║");
 Console.WriteLine("╚═══════════════════════════════════════╝");

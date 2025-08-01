@@ -12,7 +12,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
       - ASPNETCORE_URLS=http://+:8082
-      - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db;Cache=Shared;Foreign Keys=true;
+      - ConnectionStrings__DefaultConnection=Data Source=/app/data/anima.db;Cache=Shared;Foreign Keys=true;Mode=ReadWriteCreate;
       - TelegramBot__IsEnabled=false
       - AnimaAGI__LearningEnabled=true
       - AnimaAGI__SelfReflectionEnabled=true
@@ -20,14 +20,14 @@ services:
       - Security__EnableRateLimit=true
       - Security__MaxRequestsPerMinute=60
     volumes:
-      - anima-data:/app/data
-      - anima-logs:/app/logs
-      - anima-ssl:/app/ssl
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./ssl:/app/ssl
     networks:
       - anima-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/api/admin/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -75,24 +75,6 @@ services:
       - cache
 
 volumes:
-  anima-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./data
-  anima-logs:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./logs
-  anima-ssl:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ./ssl
   prometheus-data:
     driver: local
   redis-data:

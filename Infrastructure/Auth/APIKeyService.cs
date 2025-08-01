@@ -15,10 +15,12 @@ namespace Anima.Infrastructure.Auth;
 public class APIKeyService
 {
     private readonly string _masterKey; // Получаем из конфигурации
+    private readonly string _connectionString; // Строка подключения к БД
 
     public APIKeyService(IConfiguration configuration)
     {
         _masterKey = configuration["Security:DefaultApiKey"] ?? "anima-creator-key-2025-v1-secure";
+        _connectionString = configuration.GetConnectionString("DefaultConnection") ?? "Data Source=./anima.db;Cache=Shared;Foreign Keys=true;Mode=ReadWriteCreate;";
     }
     private readonly Dictionary<string, UserSession> _activeSessions = new();
 
@@ -50,7 +52,7 @@ public class APIKeyService
         }
 
         using var db = new DbContext(new DbContextOptionsBuilder<DbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options);
         
         var keyRecord = await db.APIKeys
@@ -96,7 +98,7 @@ public class APIKeyService
         var keyHash = HashAPIKey(apiKey);
 
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         
@@ -128,7 +130,7 @@ public class APIKeyService
     public async Task<bool> RevokeAPIKeyAsync(int keyId, string revokedBy)
     {
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         
@@ -156,7 +158,7 @@ public class APIKeyService
         }
 
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         
@@ -209,7 +211,7 @@ public class APIKeyService
     /// <summary>
     /// Валидация сессии
     /// </summary>
-    public async Task<AuthResult> ValidateSessionAsync(string sessionId)
+    public AuthResult ValidateSession(string sessionId)
     {
         if (!_activeSessions.TryGetValue(sessionId, out var session))
         {
@@ -259,7 +261,7 @@ public class APIKeyService
             AuthResult authResult;
             if (token.Length == 32) // Сессия
             {
-                authResult = await ValidateSessionAsync(token);
+                authResult = ValidateSession(token);
             }
             else // API ключ
             {
@@ -300,7 +302,7 @@ public class APIKeyService
         }
 
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         
@@ -400,7 +402,7 @@ public class APIKeyService
     private async Task LogAuthAttempt(string apiKey, bool success, string details)
     {
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         
@@ -423,7 +425,7 @@ public class APIKeyService
     private async Task LogAPIKeyAction(string action, string performedBy)
     {
         var options = new DbContextOptionsBuilder<AnimaDbContext>()
-            .UseSqlite("Data Source=anima.db")
+            .UseSqlite(_connectionString)
             .Options;
         using var db = new AnimaDbContext(options);
         

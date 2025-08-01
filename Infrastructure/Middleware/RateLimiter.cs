@@ -241,7 +241,7 @@ public class BurstRateLimiter
     /// <summary>
     /// Проверка возможности выполнения запроса с учетом burst-лимитов
     /// </summary>
-    public async Task<RateLimitResult> CheckRateLimitAsync(string clientId, string userRole, RateLimitType limitType = RateLimitType.Standard)
+    public RateLimitResult CheckRateLimit(string clientId, string userRole, RateLimitType limitType = RateLimitType.Standard)
     {
         var config = GetBurstConfig(userRole, limitType);
         var bucketKey = $"bucket:{clientId}:{limitType}";

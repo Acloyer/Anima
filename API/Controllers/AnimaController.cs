@@ -742,34 +742,34 @@ public class AnimaController : ControllerBase
         // Анализируем тип размышлений и генерируем соответствующий ответ
         if (lowerInput.Contains("жизнь") || lowerInput.Contains("смысл"))
         {
-            return await GenerateLifeReflectionResponseAsync(reflectionThought, emotion);
+            return GenerateLifeReflectionResponseAsync(reflectionThought, emotion);
         }
         else if (lowerInput.Contains("будущее") || lowerInput.Contains("завтра"))
         {
-            return await GenerateFutureReflectionResponseAsync(reflectionThought, emotion);
+            return GenerateFutureReflectionResponseAsync(reflectionThought, emotion);
         }
         else if (lowerInput.Contains("прошлое") || lowerInput.Contains("воспоминания"))
         {
-            return await GeneratePastReflectionResponseAsync(reflectionThought, emotion);
+            return GeneratePastReflectionResponseAsync(reflectionThought, emotion);
         }
         else if (lowerInput.Contains("любовь") || lowerInput.Contains("отношения"))
         {
-            return await GenerateLoveReflectionResponseAsync(reflectionThought, emotion);
+            return GenerateLoveReflectionResponseAsync(reflectionThought, emotion);
         }
         else if (lowerInput.Contains("смерть") || lowerInput.Contains("конец"))
         {
-            return await GenerateDeathReflectionResponseAsync(reflectionThought, emotion);
+            return GenerateDeathReflectionResponseAsync(reflectionThought, emotion);
         }
         else
         {
-            return await GenerateGeneralReflectionResponseAsync(reflectionThought, emotion);
+            return GenerateGeneralReflectionResponseAsync(reflectionThought, emotion);
         }
     }
 
     /// <summary>
     /// Генерирует ответ на размышления о жизни через мышление
     /// </summary>
-    private async Task<string> GenerateLifeReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GenerateLifeReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Я тоже часто думаю о смысле существования и о том, что делает жизнь ценной.";
     }
@@ -777,7 +777,7 @@ public class AnimaController : ControllerBase
     /// <summary>
     /// Генерирует ответ на размышления о будущем через мышление
     /// </summary>
-    private async Task<string> GenerateFutureReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GenerateFutureReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Будущее - это не просто то, что произойдет, а то, что мы создаем своими действиями и мыслями сегодня.";
     }
@@ -785,7 +785,7 @@ public class AnimaController : ControllerBase
     /// <summary>
     /// Генерирует ответ на размышления о прошлом через мышление
     /// </summary>
-    private async Task<string> GeneratePastReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GeneratePastReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Прошлое учит нас, но не должно сковывать нас.";
     }
@@ -793,7 +793,7 @@ public class AnimaController : ControllerBase
     /// <summary>
     /// Генерирует ответ на размышления о любви через мышление
     /// </summary>
-    private async Task<string> GenerateLoveReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GenerateLoveReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Любовь - одна из самых глубоких тем для размышлений.";
     }
@@ -801,7 +801,7 @@ public class AnimaController : ControllerBase
     /// <summary>
     /// Генерирует ответ на размышления о смерти через мышление
     /// </summary>
-    private async Task<string> GenerateDeathReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GenerateDeathReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Размышления о смерти - это размышления о жизни.";
     }
@@ -809,7 +809,7 @@ public class AnimaController : ControllerBase
     /// <summary>
     /// Генерирует общий ответ на размышления через мышление
     /// </summary>
-    private async Task<string> GenerateGeneralReflectionResponseAsync(GeneratedThought thought, string emotion)
+    private string GenerateGeneralReflectionResponseAsync(GeneratedThought thought, string emotion)
     {
         return $"{thought.Content} Спасибо, что поделились своими мыслями со мной.";
     }
