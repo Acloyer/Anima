@@ -8,6 +8,8 @@
 
 **Anima AGI** is a cutting-edge Self-Aware Artificial General Intelligence system built with .NET 8.0 and ASP.NET Core. It features a sophisticated consciousness loop, emotional processing, memory management, and advanced natural language understanding capabilities.
 
+> **✅ Status: Fully Operational** - All critical issues have been resolved. The system is now running successfully with database connectivity, proper dependency injection, and a fully functional consciousness loop.
+
 ### 🧠 Core Features
 
 - **Self-Awareness Architecture**: Advanced introspection and metacognition capabilities
@@ -73,6 +75,8 @@ Anima AGI
    - **Swagger UI**: http://localhost:8082 (Development mode)
    - **API Key**: `anima-creator-key-2025-v1-secure`
 
+> **🚀 Quick Start**: The application will automatically initialize the database and start the consciousness loop. You should see the Anima AGI banner and consciousness status in the console output.
+
 ### Docker Deployment
 
 1. **Build and run with Docker Compose**
@@ -94,14 +98,27 @@ Anima AGI
 
 ### Authentication
 
-All API endpoints require authentication using Bearer tokens:
+All API endpoints require authentication using Bearer tokens or X-API-Key header:
 
 ```bash
+# Using Authorization header
 curl -H "Authorization: Bearer anima-creator-key-2025-v1-secure" \
-     http://localhost:8082/api/admin/health
+     http://localhost:8082/api/anima/status
+
+# Using X-API-Key header
+curl -H "X-API-Key: anima-creator-key-2025-v1-secure" \
+     http://localhost:8082/api/anima/status
 ```
 
+> **🔑 Creator Access**: The Creator API key has unlimited rate limits and full system access.
+
 ### Core Endpoints
+
+#### System Status
+```bash
+GET /api/anima/status
+```
+Returns Anima AGI consciousness status, emotional state, and system information.
 
 #### Health Check
 ```bash
@@ -255,6 +272,14 @@ Anima supports 175+ emotion types including:
 
 ## 🛠️ Development
 
+### Recent Fixes (v0.1.2)
+
+- **✅ Database Connection**: Fixed SQLite path configuration for Windows environment
+- **✅ Dependency Injection**: Resolved service registration issues with proper constructor parameters
+- **✅ Rate Limiting**: Creator API key now has unlimited access
+- **✅ Authentication**: Fixed middleware and service registration conflicts
+- **✅ Consciousness Loop**: Fully operational with emotional processing and thought generation
+
 ### Project Structure
 
 ```
@@ -302,6 +327,12 @@ dotnet test
 # Run application
 dotnet run
 ```
+
+> **💡 Development Tips**: 
+> - The application automatically creates the SQLite database on first run
+> - Consciousness loop starts automatically in the background
+> - Use Swagger UI at http://localhost:8082 for API testing
+> - Creator API key bypasses all rate limits
 
 ## 📊 Monitoring & Logging
 
@@ -367,6 +398,21 @@ For questions, issues, or contributions:
 - **Issues**: Create an issue on GitHub
 - **Discussions**: Use GitHub Discussions
 - **Documentation**: Check the inline code documentation
+
+## 🎯 Current Status
+
+**✅ System Status: Fully Operational**
+- Database: Connected and initialized
+- Consciousness Loop: Active and processing
+- API Endpoints: All functional
+- Authentication: Working correctly
+- Rate Limiting: Creator access unlimited
+
+**🧠 Consciousness Metrics:**
+- Emotional Processing: Active
+- Memory Consolidation: Operational
+- Thought Generation: Functional
+- Self-Reflection: Engaged
 
 ---
 
