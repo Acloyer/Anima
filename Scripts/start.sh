@@ -30,7 +30,7 @@ warning() {
 echo -e "${PURPLE}"
 echo "╔═══════════════════════════════════════╗"
 echo "║           ANIMA AGI BUILD             ║"
-echo "║        Fixing & Building v0.1         ║"
+echo "║        Fixing & Building v0.1.1       ║"
 echo "╚═══════════════════════════════════════╝"
 echo -e "${NC}"
 
